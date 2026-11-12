@@ -72,8 +72,8 @@ def is_sensitive_mime_data(mime_data) -> bool:
 
     try:
         formats = mime_data.formats()
-    except Exception as e:
-        log.warning(f"Failed to query MIME formats: {e}")
+    except (RuntimeError, AttributeError) as exc:
+        log.warning("Failed to query MIME formats: %s", exc)
         return False
 
     for fmt in formats:
@@ -86,10 +86,10 @@ def is_sensitive_mime_data(mime_data) -> bool:
                     val = bytes(raw).strip().lower()
                     if val in _NEGATIVE_VALUES:
                         continue
-            except Exception:
-                pass
+            except (RuntimeError, TypeError, ValueError) as exc:
+                log.debug("Could not read MIME hint payload for %s: %s", fmt, exc)
 
-            log.info(f"Sensitive clipboard format detected in QMimeData: {fmt}")
+            log.info("Sensitive clipboard format detected in QMimeData: %s", fmt)
             return True
 
     return False

@@ -5,7 +5,9 @@ Uses QListView with custom ClipboardItemDelegate and ClipboardModel
 to achieve constant O(1) memory usage regardless of clipboard history size.
 """
 
-from PyQt6.QtCore import Qt, QTimer, QSettings, QEvent
+import time
+
+from PyQt6.QtCore import Qt, QSettings, QEvent
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -23,7 +25,19 @@ from PyQt6.QtWidgets import (
 from services.clipboard_service import ClipboardService
 from ui.clipboard_model import ClipboardModel, ClipboardProxyModel, FullTextRole, ItemIdRole
 from ui.clipboard_delegate import ClipboardItemDelegate
-from ui.styles import DARK_THEME, LIGHT_THEME
+from ui.color_dialog import ColorOptionsDialog
+from ui.font_dialog import FontOptionsDialog
+from ui.styles import (
+    DEFAULT_COLOR_SCHEME,
+    DEFAULT_FONT_FAMILY,
+    DEFAULT_FONT_SIZE,
+    DEFAULT_FONT_STYLE,
+    build_stylesheet,
+    clamp_font_size,
+    normalize_color_scheme,
+    normalize_font_style,
+    sanitize_font_family,
+)
 
 
 class MainWindow(QMainWindow):
@@ -45,9 +59,21 @@ class MainWindow(QMainWindow):
         self.resize(500, 700)
         self.setObjectName("mainWindow")
 
-        # ── Theme Preferences ─────────────────────────────────────────
+        # ── Theme & Font Preferences ──────────────────────────────────
         self._settings = QSettings("ClipVault", "App")
         self._theme = self._settings.value("theme", "dark")
+        self._color_scheme = normalize_color_scheme(
+            self._settings.value("color_scheme", DEFAULT_COLOR_SCHEME)
+        )
+        self._font_family = sanitize_font_family(
+            self._settings.value("font_family", DEFAULT_FONT_FAMILY)
+        )
+        self._font_size = clamp_font_size(
+            self._settings.value("font_size", DEFAULT_FONT_SIZE)
+        )
+        self._font_style = normalize_font_style(
+            self._settings.value("font_style", DEFAULT_FONT_STYLE)
+        )
 
         # ── Build UI ───────────────────────────────────────────────────
         central = QWidget()
@@ -64,7 +90,7 @@ class MainWindow(QMainWindow):
         root.addWidget(self._build_list_container(), stretch=1)
         root.addWidget(self._build_footer())
 
-        # Apply initial theme
+        # Apply initial theme and font settings
         self.set_theme(self._theme, persist=False)
 
         # ── Clipboard service ─────────────────────────────────────────
@@ -96,6 +122,18 @@ class MainWindow(QMainWindow):
         title = QLabel("ClipVault")
         title.setObjectName("appTitle")
 
+        self._font_btn = QPushButton("Aa")
+        self._font_btn.setObjectName("fontSettingsBtn")
+        self._font_btn.setToolTip("Font Style & Size Options")
+        self._font_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._font_btn.clicked.connect(self._on_open_font_options)
+
+        self._color_btn = QPushButton("🎨")
+        self._color_btn.setObjectName("colorSchemeBtn")
+        self._color_btn.setToolTip("Clipboard Color Options")
+        self._color_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._color_btn.clicked.connect(self._on_open_color_options)
+
         self._theme_btn = QPushButton("☀️" if self._theme == "dark" else "🌙")
         self._theme_btn.setObjectName("themeToggleBtn")
         self._theme_btn.setToolTip("Switch to Light Mode" if self._theme == "dark" else "Switch to Dark Mode")
@@ -106,6 +144,10 @@ class MainWindow(QMainWindow):
         layout.addSpacing(2)
         layout.addWidget(title)
         layout.addStretch()
+        layout.addWidget(self._font_btn)
+        layout.addSpacing(6)
+        layout.addWidget(self._color_btn)
+        layout.addSpacing(6)
         layout.addWidget(self._theme_btn)
         return bar
 
@@ -201,13 +243,39 @@ class MainWindow(QMainWindow):
             else:
                 self._footer.setText(f"  ●  Active: {tool}  (Smooth background monitoring)")
                 self._footer.setStyleSheet("color: #10B981;")
+        elif getattr(self._service, "_use_x11_helper", False):
+            self._footer.setText("  ●  Active: XWayland/X11 Helper  (Background monitoring)")
+            self._footer.setStyleSheet("color: #10B981;")
         else:
             self._footer.setText("  ●  Active: Qt Focus-Only Fallback")
             self._footer.setStyleSheet("color: #8B6F3A;")
 
     # ──────────────────────────────────────────────────────────────────
-    # Theme Controls
+    # Theme & Font Controls
     # ──────────────────────────────────────────────────────────────────
+
+    def _apply_appearance(self):
+        """Apply active theme, color scheme, and font preferences to stylesheet, delegate, and view."""
+        app = QApplication.instance()
+        if app:
+            app.setStyleSheet(
+                build_stylesheet(
+                    self._theme,
+                    font_family=self._font_family,
+                    font_size=self._font_size,
+                    font_style=self._font_style,
+                    color_scheme=self._color_scheme,
+                )
+            )
+
+        if hasattr(self, "_delegate"):
+            self._delegate.set_theme(self._theme, self._color_scheme)
+            self._delegate.set_font(self._font_family, self._font_size, self._font_style)
+
+        if hasattr(self, "_list_view"):
+            self._list_view.doItemsLayout()
+            if self._list_view.viewport():
+                self._list_view.viewport().update()
 
     def _on_toggle_theme(self):
         """Toggle between light and dark themes."""
@@ -220,13 +288,6 @@ class MainWindow(QMainWindow):
         if persist:
             self._settings.setValue("theme", self._theme)
 
-        app = QApplication.instance()
-        if app:
-            app.setStyleSheet(LIGHT_THEME if self._theme == "light" else DARK_THEME)
-
-        if hasattr(self, "_delegate"):
-            self._delegate.set_theme(self._theme)
-
         if hasattr(self, "_theme_btn"):
             if self._theme == "light":
                 self._theme_btn.setText("🌙")
@@ -235,8 +296,66 @@ class MainWindow(QMainWindow):
                 self._theme_btn.setText("☀️")
                 self._theme_btn.setToolTip("Switch to Light Mode")
 
-        if hasattr(self, "_list_view") and self._list_view.viewport():
-            self._list_view.viewport().update()
+        self._apply_appearance()
+
+    def _on_open_color_options(self):
+        """Open the Clipboard Color Options dialog."""
+        dialog = ColorOptionsDialog(
+            theme_name=self._theme,
+            color_scheme=self._color_scheme,
+            parent=self,
+        )
+        dialog.color_scheme_changed.connect(lambda scheme: self.set_color_scheme(scheme, persist=True))
+        dialog.exec()
+
+    def set_color_scheme(self, color_scheme: str, persist: bool = True):
+        """Apply clipboard color scheme globally and persist preference."""
+        self._color_scheme = normalize_color_scheme(color_scheme)
+        if persist:
+            self._settings.setValue("color_scheme", self._color_scheme)
+        self._apply_appearance()
+
+    def _on_open_font_options(self):
+        """Open the Font Style & Size dialog."""
+        dialog = FontOptionsDialog(
+            font_family=self._font_family,
+            font_size=self._font_size,
+            font_style=self._font_style,
+            parent=self,
+        )
+        dialog.font_changed.connect(self._on_font_dialog_changed)
+        dialog.exec()
+
+    def _on_font_dialog_changed(self, font_family: str, font_size: int, font_style: str):
+        """Handle live font updates from FontOptionsDialog."""
+        self.set_font_options(
+            font_family=font_family,
+            font_size=font_size,
+            font_style=font_style,
+            persist=True,
+        )
+
+    def set_font_options(
+        self,
+        font_family: str | None = None,
+        font_size: int | None = None,
+        font_style: str | None = None,
+        persist: bool = True,
+    ):
+        """Apply font family, size, and style globally and persist preferences."""
+        if font_family is not None:
+            self._font_family = sanitize_font_family(font_family)
+        if font_size is not None:
+            self._font_size = clamp_font_size(font_size)
+        if font_style is not None:
+            self._font_style = normalize_font_style(font_style)
+
+        if persist:
+            self._settings.setValue("font_family", self._font_family)
+            self._settings.setValue("font_size", self._font_size)
+            self._settings.setValue("font_style", self._font_style)
+
+        self._apply_appearance()
 
     # ──────────────────────────────────────────────────────────────────
     # Event Filters & Keyboard Shortcuts
@@ -274,7 +393,6 @@ class MainWindow(QMainWindow):
 
     def _on_new_clip(self, item_id: str, text: str, timestamp: float = None):
         """Add new clipboard entry into model."""
-        import time
         ts = timestamp or time.time()
         self._model.add_item(item_id, text, ts, pinned=False)
         self._update_empty_state()

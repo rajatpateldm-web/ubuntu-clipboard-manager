@@ -24,7 +24,7 @@ ClipVault tracks your text clipboard history on Ubuntu, GNOME Wayland, and X11 d
 
 - **Pre-read password protection:** Inspects active clipboard targets (`x-kde-passwordManagerHint`, `application/x-password-manager-hint`, `application/x-copyq-secret`, `application/x-nspasteboard-concealed-type`, `text/x-moz-secret`, and related flags) before storing text.
 - **No GNOME Wayland dock flicker:** Runs off-thread background capture prioritizing `xclip` and `xsel` before falling back to `wl-paste`, while clearing `DESKTOP_STARTUP_ID` and `XDG_ACTIVATION_TOKEN` on subprocess calls.
-- **Constant UI memory footprint:** Uses `QListView.setUniformItemSizes(True)` and fixed `64px` custom delegates so scrolling stays smooth regardless of clip size.
+- **Virtualized list rendering:** Uses `QListView` (`setUniformItemSizes(True)`) and custom `QPainter` delegates with dynamic row heights scaled to the selected font size so scrolling stays smooth regardless of history length.
 - **SQLite WAL persistence (`0600`):** Stores up to 100 unpinned UTF-8 text entries (plus unlimited pinned cards) inside `PRAGMA journal_mode=WAL` storage restricted to owner permissions.
 - **Strict sandbox ready:** Packaged with `core24` Snap AppArmor confinement and single-instance `QLocalServer` UNIX socket toggles (`clipvault-teckscaler.toggle`).
 
@@ -73,8 +73,14 @@ Other native distribution channels (`Flathub` under `com.teckscaler.ClipVault`, 
 ./test_clipboard.sh
 ```
 
-The automated test suite verifies SQLite WAL persistence, MIME password filtering across all eight descriptors, negative-flag validation, theme switching, keyboard navigation, and `QListView` virtualization (`40` unit checks plus E2E window checks).
+The automated test suite verifies SQLite WAL persistence and `0o600` file permissions, MIME password filtering, negative-flag validation, bounded IPC parsing, theme and color scheme switching, font options, X11/XWayland background helper capture, keyboard navigation, and `QListView` virtualization (`65` unit checks plus E2E window checks).
 
-## Reporting Issues and Contributing
+## Documentation and Contributing
+
+- [CHANGELOG.md](CHANGELOG.md): Version history and unreleased changes.
+- [CONTRIBUTING.md](CONTRIBUTING.md): Developer setup, testing, linting, and security guidelines.
+- [ARCHITECTURE.md](ARCHITECTURE.md): System architecture and directory layout.
+- [SKILLS.md](SKILLS.md): Engineering and clean code standards.
 
 Open bug reports or feature requests on [GitHub Issues](https://github.com/rajatpateldm-web/ubuntu-clipboard-manager/issues) or reach us via the [ClipVault Support Form](https://teckscaler.com/clipvault-clipboard-manager/#support-enquiries). Released under the [MIT License](LICENSE).
+

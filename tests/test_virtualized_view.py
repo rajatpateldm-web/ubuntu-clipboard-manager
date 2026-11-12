@@ -8,8 +8,7 @@ and ClipboardItemDelegate.
 import unittest
 from unittest.mock import MagicMock, patch
 
-from PyQt6.QtCore import Qt, QModelIndex, QPoint, QEvent
-from PyQt6.QtGui import QMouseEvent
+from PyQt6.QtCore import QModelIndex
 from PyQt6.QtWidgets import QApplication
 
 from ui.clipboard_model import (
@@ -17,10 +16,8 @@ from ui.clipboard_model import (
     ClipboardProxyModel,
     ItemIdRole,
     FullTextRole,
-    TimestampRole,
     PinnedRole,
     LineCountRole,
-    PreviewRole,
 )
 from ui.clipboard_delegate import ClipboardItemDelegate
 

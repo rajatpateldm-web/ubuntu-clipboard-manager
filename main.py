@@ -6,6 +6,7 @@ Run from the project root (with the venv active):
     python main.py
 """
 
+import logging
 import sys
 
 from PyQt6.QtCore import QSettings
@@ -13,12 +14,33 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 
 from ui.main_window import MainWindow
-from ui.styles import DARK_THEME, LIGHT_THEME
+from ui.styles import (
+    DEFAULT_COLOR_SCHEME,
+    DEFAULT_FONT_FAMILY,
+    DEFAULT_FONT_SIZE,
+    DEFAULT_FONT_STYLE,
+    build_stylesheet,
+    clamp_font_size,
+    normalize_color_scheme,
+    normalize_font_style,
+    sanitize_font_family,
+)
 
 SERVER_NAME = "ClipVaultLocalServer"
+_MAX_IPC_BYTES = 64
+
+
+def parse_ipc_command(raw_data: bytes) -> str:
+    """Decode and bound an incoming IPC command payload."""
+    return raw_data[:_MAX_IPC_BYTES].decode("utf-8", errors="ignore").strip()
 
 
 def main():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
+
     # Check if ClipVault is already running by attempting a local socket connection
     socket = QLocalSocket()
     socket.connectToServer(SERVER_NAME)
@@ -35,10 +57,22 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("ClipVault")
 
-    # Load saved theme preference from QSettings
+    # Load saved theme, color scheme, and font preferences from QSettings
     settings = QSettings("ClipVault", "App")
     saved_theme = settings.value("theme", "dark")
-    app.setStyleSheet(LIGHT_THEME if saved_theme == "light" else DARK_THEME)
+    saved_color_scheme = normalize_color_scheme(settings.value("color_scheme", DEFAULT_COLOR_SCHEME))
+    saved_font_family = sanitize_font_family(settings.value("font_family", DEFAULT_FONT_FAMILY))
+    saved_font_size = clamp_font_size(settings.value("font_size", DEFAULT_FONT_SIZE))
+    saved_font_style = normalize_font_style(settings.value("font_style", DEFAULT_FONT_STYLE))
+    app.setStyleSheet(
+        build_stylesheet(
+            saved_theme,
+            font_family=saved_font_family,
+            font_size=saved_font_size,
+            font_style=saved_font_style,
+            color_scheme=saved_color_scheme,
+        )
+    )
 
     # Create the main window
     window = MainWindow()
@@ -51,11 +85,15 @@ def main():
     if server.listen(SERVER_NAME):
         def handle_new_connection():
             client_socket = server.nextPendingConnection()
+            if client_socket is None:
+                return
             if client_socket.waitForReadyRead(200):
-                data = client_socket.readAll().data()
-                if b"toggle" in data:
+                raw_data = client_socket.read(_MAX_IPC_BYTES)
+                if parse_ipc_command(raw_data) == "toggle":
                     window.toggle_window()
             client_socket.disconnectFromServer()
+            client_socket.close()
+            client_socket.deleteLater()
 
         server.newConnection.connect(handle_new_connection)
 

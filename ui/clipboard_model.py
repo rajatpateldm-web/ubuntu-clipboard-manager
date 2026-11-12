@@ -44,8 +44,8 @@ class ClipboardModel(QAbstractListModel):
         super().__init__(parent)
         self._items: list[dict] = []
 
-    def rowCount(self, parent=QModelIndex()) -> int:
-        if parent.isValid():
+    def rowCount(self, parent=None) -> int:
+        if parent is not None and parent.isValid():
             return 0
         return len(self._items)
 

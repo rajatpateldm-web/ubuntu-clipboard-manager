@@ -8,7 +8,7 @@ import os
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from PyQt6.QtCore import Qt, QSettings, QEvent
 from PyQt6.QtGui import QKeyEvent
@@ -17,7 +17,6 @@ from PyQt6.QtWidgets import QApplication
 from ui.styles import DARK_THEME, LIGHT_THEME, DELEGATE_PALETTES
 from ui.clipboard_delegate import ClipboardItemDelegate
 from ui.main_window import MainWindow
-from ui.clipboard_model import ItemIdRole
 
 
 class TestThemeAndKeyboard(unittest.TestCase):
@@ -38,8 +37,8 @@ class TestThemeAndKeyboard(unittest.TestCase):
             try:
                 w._service.stop()
                 w.close()
-            except Exception:
-                pass
+            except RuntimeError as exc:
+                self._cleanup_error = exc
         self.app.processEvents()
         self.env_patch.stop()
         import shutil

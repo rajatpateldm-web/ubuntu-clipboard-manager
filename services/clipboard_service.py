@@ -23,10 +23,12 @@ THE SOLUTION:
 4. **History Cap**: Capped at 100 items with automatic trimming.
 """
 
+import json
 import logging
 import os
 import shutil
 import subprocess
+import sys
 import time
 import uuid
 
@@ -42,6 +44,26 @@ from PyQt6.QtWidgets import QApplication
 log = logging.getLogger("ClipVault.clipboard")
 
 MAX_HISTORY = 100
+MAX_TEXT_LENGTH = 1_000_000
+
+
+def sort_history_items(items: list[dict]) -> None:
+    """Sort history items in place: pinned first (newest-first), then unpinned."""
+    items.sort(
+        key=lambda x: (x.get("pinned", False), x.get("timestamp", 0.0)),
+        reverse=True,
+    )
+
+
+def _terminate_process(proc: subprocess.Popen | None) -> None:
+    """Safely terminate and reap a child subprocess."""
+    if proc is None:
+        return
+    try:
+        proc.terminate()
+        proc.wait(timeout=1)
+    except (OSError, subprocess.SubprocessError) as exc:
+        log.debug("Subprocess cleanup warning: %s", exc)
 
 
 def normalize_text(text: str) -> str:
@@ -57,8 +79,8 @@ def normalize_text(text: str) -> str:
     # Remove null bytes (often returned by CLI clipboard watchers or tools)
     text = text.replace("\0", "")
     # Guard against unbounded memory consumption by capping massive payloads
-    if len(text) > 1_000_000:
-        text = text[:1_000_000]
+    if len(text) > MAX_TEXT_LENGTH:
+        text = text[:MAX_TEXT_LENGTH]
     # Strip trailing and leading whitespace/newlines for clean storage & comparison
     return text.strip()
 
@@ -98,6 +120,19 @@ def _find_targets_command(clip_cmd: list[str] | None) -> list[str] | None:
     return None
 
 
+def _can_use_x11_helper() -> bool:
+    """Return True when the persistent X11/XWayland Python helper can be used."""
+    if not os.environ.get("DISPLAY"):
+        return False
+    if os.environ.get("QT_QPA_PLATFORM", "").lower() == "offscreen":
+        return False
+    helper_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "x11_clipboard_helper.py",
+    )
+    return os.path.isfile(helper_path)
+
+
 class ClipboardWorker(QThread):
     """
     Background worker thread to perform safe, off-thread subprocess monitoring.
@@ -105,21 +140,30 @@ class ClipboardWorker(QThread):
     """
     text_detected = pyqtSignal(str)
 
-    def __init__(self, cmd: list[str], interval_ms: int, use_watch_mode: bool, targets_cmd: list[str] | None = None, parent=None):
+    def __init__(
+        self,
+        cmd: list[str] | None,
+        interval_ms: int,
+        use_watch_mode: bool,
+        targets_cmd: list[str] | None = None,
+        parent=None,
+        use_x11_helper: bool = False,
+    ):
         super().__init__(parent)
         self.cmd = cmd
         self.targets_cmd = targets_cmd or _find_targets_command(cmd)
         self.interval_ms = interval_ms
         self.use_watch_mode = use_watch_mode
+        self.use_x11_helper = use_x11_helper
         self._running = True
-        self._enabled = use_watch_mode  # Always enabled initially in watch mode
+        self._enabled = use_watch_mode or use_x11_helper
         self._last_text = ""
         self._proc = None
 
     def set_enabled(self, enabled: bool):
         """Enable or disable the background subprocess polling loop."""
-        if self.use_watch_mode:
-            # Watch mode is persistent and lightweight; we keep it enabled
+        if self.use_watch_mode or self.use_x11_helper:
+            # Watch and helper modes are persistent and lightweight; keep enabled
             # throughout the app lifecycle to avoid process spawn overhead on focus toggle.
             self._enabled = True
         else:
@@ -136,12 +180,12 @@ class ClipboardWorker(QThread):
                 text=True,
                 errors="replace",
                 env=clean_env,
-                timeout=0.4
+                timeout=0.4,
             )
             if res.returncode == 0 and res.stdout:
                 return is_sensitive_targets(res.stdout)
-        except Exception:
-            pass
+        except (subprocess.SubprocessError, OSError) as exc:
+            log.debug("Target inspection failed: %s", exc)
         return False
 
     def _check_clipboard_poll(self, clean_env: dict):
@@ -160,15 +204,15 @@ class ClipboardWorker(QThread):
                 text=True,
                 errors="replace",
                 env=clean_env,
-                timeout=0.4  # Ultra-short timeout
+                timeout=0.4,
             )
             if result.returncode == 0:
-                text = result.stdout
+                text = result.stdout[:MAX_TEXT_LENGTH]
                 if text and text != self._last_text:
                     self._last_text = text
                     self.text_detected.emit(text)
-        except Exception:
-            pass
+        except (subprocess.SubprocessError, OSError) as exc:
+            log.debug("Clipboard poll failed: %s", exc)
 
     def run(self):
         # Copy and clean the environment to prevent GNOME from showing startup/launch
@@ -178,7 +222,11 @@ class ClipboardWorker(QThread):
         clean_env.pop("XDG_ACTIVATION_TOKEN", None)
 
         while self._running:
-            if self.use_watch_mode:
+            if self.use_x11_helper:
+                self._run_x11_helper(clean_env)
+                if self._running:
+                    time.sleep(1)
+            elif self.use_watch_mode:
                 # ── Wayland Watch Mode ────────────────────────────────
                 try:
                     self._proc = subprocess.Popen(
@@ -198,8 +246,8 @@ class ClipboardWorker(QThread):
                         self.use_watch_mode = False
                         self._enabled = False
                         continue
-                except Exception as e:
-                    log.warning(f"Failed to start wl-paste watch: {e}")
+                except (OSError, subprocess.SubprocessError) as exc:
+                    log.warning("Failed to start wl-paste watch: %s", exc)
                     self.use_watch_mode = False
                     self._enabled = False
                     continue
@@ -219,15 +267,11 @@ class ClipboardWorker(QThread):
                                 if self._is_sensitive_cli(clean_env):
                                     log.info("Dropped sensitive clipboard event from wl-paste watch")
                                 else:
-                                    self.text_detected.emit(text)
-                except Exception:
-                    pass
+                                    self.text_detected.emit(text[:MAX_TEXT_LENGTH])
+                except (OSError, ValueError) as exc:
+                    log.debug("wl-paste watch stream ended: %s", exc)
                 finally:
-                    try:
-                        self._proc.terminate()
-                        self._proc.wait(timeout=1)
-                    except Exception:
-                        pass
+                    _terminate_process(self._proc)
 
                 if self._running:
                     time.sleep(1)  # Throttle restarts
@@ -236,13 +280,64 @@ class ClipboardWorker(QThread):
                 self._check_clipboard_poll(clean_env)
                 time.sleep(self.interval_ms / 1000.0)
 
+    def _run_x11_helper(self, clean_env: dict):
+        """Run persistent X11/XWayland clipboard helper and stream JSON clipboard lines."""
+        helper_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "x11_clipboard_helper.py",
+        )
+        helper_env = clean_env.copy()
+        helper_env["QT_QPA_PLATFORM"] = "xcb"
+
+        try:
+            self._proc = subprocess.Popen(
+                [sys.executable, helper_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                errors="replace",
+                env=helper_env,
+                bufsize=1,
+            )
+            time.sleep(0.2)
+            if self._proc.poll() is not None:
+                stderr_msg = self._proc.stderr.read() if self._proc.stderr else ""
+                log.warning("X11 clipboard helper exited early: %s", stderr_msg.strip())
+                self.use_x11_helper = False
+                self._enabled = False
+                return
+        except (OSError, subprocess.SubprocessError) as exc:
+            log.warning("Failed to start X11 clipboard helper: %s", exc)
+            self.use_x11_helper = False
+            self._enabled = False
+            return
+
+        try:
+            while self._running and self._proc.stdout:
+                line = self._proc.stdout.readline()
+                if not line:
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    payload = json.loads(line)
+                    text = payload.get("text", "")
+                except (ValueError, TypeError):
+                    continue
+                if text:
+                    text = text[:MAX_TEXT_LENGTH]
+                    if text != self._last_text:
+                        self._last_text = text
+                        self.text_detected.emit(text)
+        except (OSError, ValueError) as exc:
+            log.debug("X11 helper stream ended: %s", exc)
+        finally:
+            _terminate_process(self._proc)
+
     def stop(self):
         self._running = False
-        if self._proc:
-            try:
-                self._proc.terminate()
-            except Exception:
-                pass
+        _terminate_process(self._proc)
         self.wait()
 
 
@@ -281,6 +376,9 @@ class ClipboardService(QObject):
             and self._clip_cmd
             and "wl-paste" in self._clip_cmd[0]
         )
+        self._use_x11_helper = (
+            self._clip_cmd is None and _can_use_x11_helper()
+        )
 
         # ── Tier 1: QClipboard Signal ─────────────────────────────────
         self._clipboard = QApplication.clipboard()
@@ -293,7 +391,8 @@ class ClipboardService(QObject):
             self.POLL_INTERVAL_MS,
             self._use_watch_mode,
             self._targets_cmd,
-            self
+            self,
+            use_x11_helper=self._use_x11_helper,
         )
         self._worker.text_detected.connect(self._process_text)
 
@@ -316,8 +415,61 @@ class ClipboardService(QObject):
             self._worker.start()
         if not self._focus_timer.isActive():
             self._focus_timer.start()
-        if not self._clip_cmd:
+        if not self._clip_cmd and not self._use_x11_helper:
             self._qt_timer.start()
+
+    def _run_x11_helper(self, clean_env: dict):
+        """Run persistent X11/XWayland clipboard helper and stream JSON clipboard lines."""
+        helper_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "x11_clipboard_helper.py",
+        )
+        helper_env = clean_env.copy()
+        helper_env["QT_QPA_PLATFORM"] = "xcb"
+
+        try:
+            self._proc = subprocess.Popen(
+                [sys.executable, helper_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                errors="replace",
+                env=helper_env,
+                bufsize=1,
+            )
+            time.sleep(0.2)
+            if self._proc.poll() is not None:
+                stderr_msg = self._proc.stderr.read() if self._proc.stderr else ""
+                log.warning(f"X11 clipboard helper exited early: {stderr_msg.strip()}")
+                self.use_x11_helper = False
+                self._enabled = False
+                return
+        except Exception as e:
+            log.warning(f"Failed to start X11 clipboard helper: {e}")
+            self.use_x11_helper = False
+            self._enabled = False
+            return
+
+        try:
+            while self._running and self._proc.stdout:
+                line = self._proc.stdout.readline()
+                if not line:
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    payload = json.loads(line)
+                    text = payload.get("text", "")
+                except (ValueError, TypeError):
+                    continue
+                if text and text != self._last_text:
+                    self._last_text = text
+                    self.text_detected.emit(text)
+        except (OSError, ValueError) as exc:
+            log.debug("X11 helper stream ended: %s", exc)
+        finally:
+            _terminate_process(self._proc)
 
     def stop(self):
         """Clean shutdown to avoid dangling threads or memory leaks."""
@@ -368,7 +520,9 @@ class ClipboardService(QObject):
         """Ignore next clipboard update (used for copy-back operation)."""
         self._ignore_next = True
         self._ignore_text = text
-        QTimer.singleShot(500, self.clear_ignore_text)
+        if hasattr(self, "_worker"):
+            self._worker._last_text = text
+        QTimer.singleShot(1200, self.clear_ignore_text)
 
     def set_item_pinned(self, item_id: str, pinned: bool):
         """Update the pinned state of an item in service history and database."""
@@ -376,10 +530,10 @@ class ClipboardService(QObject):
             if item["id"] == item_id:
                 item["pinned"] = pinned
                 break
-        
+
         # Keep history sorted: pinned items first (newest-first), then unpinned items (newest-first)
-        self.history.sort(key=lambda x: (x.get("pinned", False), x.get("timestamp", 0.0)), reverse=True)
-        
+        sort_history_items(self.history)
+
         # Update SQLite database
         self._db.set_pinned(item_id, pinned)
 
@@ -398,36 +552,25 @@ class ClipboardService(QObject):
         else:
             self._worker.set_enabled(True)
 
+    def _capture_active_qt_clipboard(self):
+        """Safely inspect MIME hints and read Qt clipboard only while window is focused."""
+        if QApplication.activeWindow() is None:
+            return
+        if is_sensitive_mime_data(self._clipboard.mimeData()):
+            log.info("Ignored sensitive clipboard text (password manager hint detected)")
+            return
+        self._process_text(self._clipboard.text())
+
     def _on_qt_signal(self):
         """Tier 1 callback: Instant when focused."""
         # Under Wayland/Ubuntu, calling QClipboard.text() while unfocused blocks
         # the main GUI thread, causing typing lag and taskbar flickering.
-        is_focused = QApplication.activeWindow() is not None
-        if not is_focused:
-            return
-
-        # Check sensitive password manager hints before reading text
-        mime_data = self._clipboard.mimeData()
-        if is_sensitive_mime_data(mime_data):
-            log.info("Ignored sensitive clipboard text (password manager hint detected)")
-            return
-
-        raw_text = self._clipboard.text()
-        normalized = normalize_text(raw_text)
-        if self._ignore_next or (self._ignore_text and normalized == normalize_text(self._ignore_text)):
-            return
-        self._process_text(raw_text)
+        self._capture_active_qt_clipboard()
 
     def _on_qt_poll_tick(self):
         """Tier 3 callback: Standard Qt polling fallback."""
         if not self._clip_cmd:
-            is_focused = QApplication.activeWindow() is not None
-            if is_focused:
-                mime_data = self._clipboard.mimeData()
-                if is_sensitive_mime_data(mime_data):
-                    log.info("Ignored sensitive clipboard text during Qt polling")
-                    return
-                self._process_text(self._clipboard.text())
+            self._capture_active_qt_clipboard()
 
     def _process_text(self, text: str):
         """Central deduplication gate."""
@@ -437,8 +580,8 @@ class ClipboardService(QObject):
                 if is_sensitive_mime_data(self._clipboard.mimeData()):
                     log.info("Ignored sensitive clipboard text in _process_text")
                     return
-            except Exception:
-                pass
+            except (RuntimeError, AttributeError) as exc:
+                log.debug("Failed to inspect active MIME data: %s", exc)
 
         normalized = normalize_text(text)
         if not normalized:
@@ -460,8 +603,8 @@ class ClipboardService(QObject):
         # New items are always unpinned initially
         self.history.insert(0, {"id": item_id, "text": normalized, "timestamp": timestamp, "pinned": False})
         # Keep history sorted: pinned items first (newest-first), then unpinned items (newest-first)
-        self.history.sort(key=lambda x: (x.get("pinned", False), x.get("timestamp", 0.0)), reverse=True)
-        
+        sort_history_items(self.history)
+
         self._db.save_item(item_id, normalized, timestamp, pinned=False)
         self.new_item.emit(item_id, normalized, timestamp)
 

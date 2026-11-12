@@ -80,9 +80,10 @@ ClipVault avoids allocating individual `QWidget` objects for every clipboard ent
 
 *   **Model (`ui/clipboard_model.py`):** `ClipboardModel` inherits `QAbstractListModel`. It maintains an in-memory collection of dictionary items exposing custom data roles: `ItemIdRole`, `FullTextRole`, `TimestampRole`, `PinnedRole`, `PreviewTextRole`, and `LineCountRole`.
 *   **Proxy filtering (`ui/clipboard_model.py`):** `ClipboardProxyModel` inherits `QSortFilterProxyModel`. It handles case-insensitive substring searching without reallocating item rows, sorting pinned cards to the top, followed by reverse chronological order.
-*   **Delegate rendering (`ui/clipboard_delegate.py`):** `ClipboardItemDelegate` inherits `QStyledItemDelegate`. It executes direct `QPainter` drawing passes for visible cards only, dynamically applying theme palettes (`dark` and `light`) to keep memory consumption constant regardless of history size.
-*   **Main window (`ui/main_window.py`):** Manages window layout, search bar input, list viewport, status bar counters, theme toggle controls (persisted via `QSettings`), and keyboard navigation (Down Arrow focus shift, Delete key item purging, and Escape window dismissal).
-*   **Dual-theme styling engine (`ui/styles.py`):** Defines `DARK_THEME` and `LIGHT_THEME` stylesheets alongside structured `DELEGATE_PALETTES` providing high-contrast background, border, text, and button states across light and dark modes.
+*   **Delegate rendering (`ui/clipboard_delegate.py`):** `ClipboardItemDelegate` inherits `QStyledItemDelegate`. It executes direct `QPainter` drawing passes for visible cards only, dynamically applying theme palettes (`dark` and `light`), selected accent color schemes, and user typography settings to keep memory consumption constant regardless of history size.
+*   **Main window (`ui/main_window.py`):** Manages window layout, search bar input, list viewport, status bar counters, theme toggle, color scheme picker (`ui/color_dialog.py`), font style and size picker (`ui/font_dialog.py`) persisted via `QSettings`, and keyboard navigation (Down Arrow focus shift, Delete key item purging, and Escape window dismissal).
+*   **Styling engine (`ui/styles.py`):** Defines `DARK_THEME`, `LIGHT_THEME`, `COLOR_SCHEMES`, font sanitization/clamping helpers, and `build_delegate_palette` providing high-contrast background, border, text, accent, and button states across light, dark, classic, cyan, and IDE-inspired color schemes.
+*   **Wayland background X11/XWayland helper (`services/x11_clipboard_helper.py`):** Subprocess worker running under `QT_QPA_PLATFORM=xcb` so X11/XWayland clipboard events from external windows are captured on Wayland sessions even without external CLI utilities (`xclip`, `xsel`) or main window focus.
 
 ### Persistence Service (`services/database_service.py`)
 *   **Storage engine:** Embedded SQLite database (`clipvault.db`).
@@ -162,9 +163,12 @@ Future developers modifying ClipVault must adhere to these concurrency invariant
 ```text
 ubuntu-clipboard-manager/
 ├── ARCHITECTURE.md                 # System architecture specification
+├── CHANGELOG.md                    # Release and unreleased change log
+├── CONTRIBUTING.md                 # Developer setup and engineering standards
 ├── SKILLS.md                       # Engineering standards and practices
 ├── TEST_PLAN.md                    # Comprehensive test strategy and verification matrix
 ├── main.py                         # Application bootstrap and IPC server
+├── pyproject.toml                  # Project metadata and linter configuration
 ├── clipvault.db                    # Default SQLite storage (WAL mode)
 ├── requirements.txt                # Python runtime dependencies
 ├── test_clipboard.sh               # Local test automation runner
@@ -175,21 +179,28 @@ ubuntu-clipboard-manager/
 │           └── SKILL.md            # Clean, DRY, and secure code skill
 ├── services/                       # Application business logic and system services
 │   ├── __init__.py
-│   ├── clipboard_service.py        # Three-tier clipboard monitoring engine
-│   ├── database_service.py         # SQLite persistence with WAL mode
-│   └── sensitive_detector.py      # MIME hint password manager detector
+│   ├── clipboard_service.py        # Multi-backend clipboard monitoring engine
+│   ├── database_service.py         # SQLite persistence with WAL mode and 0o600 permissions
+│   ├── sensitive_detector.py       # MIME hint password manager detector
+│   └── x11_clipboard_helper.py     # Qt XCB helper subprocess for Wayland background capture
 ├── ui/                             # Virtualized Qt presentation layer
 │   ├── __init__.py
 │   ├── clipboard_delegate.py       # Custom item painter and event handler
 │   ├── clipboard_item.py           # Legacy widget fallback
 │   ├── clipboard_model.py          # Virtualized list model and proxy filter
+│   ├── color_dialog.py             # Clipboard accent color scheme picker dialog
+│   ├── font_dialog.py              # Font family, style, and size picker dialog
 │   ├── main_window.py              # Main application window
-│   └── styles.py                   # Global dark styling and color palette
+│   └── styles.py                   # Global theme, color scheme, and font stylesheet builder
 ├── tests/                          # Automated test suites
 │   ├── __init__.py
+│   ├── test_color_options.py       # Accent color scheme and persistence tests
 │   ├── test_database_service.py    # Database schema, WAL, and migration tests
+│   ├── test_font_options.py        # Font style, size, and stylesheet sanitization tests
+│   ├── test_security_and_ipc.py    # Permissions, bounds checking, and IPC validation tests
 │   ├── test_sensitive_detector.py  # Password manager hint unit tests
 │   ├── test_sensitive_clipboard_service.py # Service-level sensitive filtering tests
+│   ├── test_theme.py               # Light/dark theme persistence and toggle tests
 │   └── test_virtualized_view.py    # Model, proxy, delegate, and GUI tests
 └── snap/                           # Snap packaging configuration
     ├── snapcraft.yaml              # Strict confinement recipe

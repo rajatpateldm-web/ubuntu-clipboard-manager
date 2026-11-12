@@ -16,7 +16,20 @@ from ui.clipboard_model import (
     PreviewRole,
     TimeStrRole,
 )
-from ui.styles import DELEGATE_PALETTES
+from ui.styles import (
+    DEFAULT_COLOR_SCHEME,
+    DEFAULT_FONT_FAMILY,
+    DEFAULT_FONT_SIZE,
+    DEFAULT_FONT_STYLE,
+    DELEGATE_PALETTES,
+    FONT_STYLE_OPTIONS,
+    clamp_font_size,
+    get_delegate_palette,
+    normalize_color_scheme,
+    normalize_font_style,
+    resolve_qt_font_family,
+    sanitize_font_family,
+)
 
 
 class ClipboardItemDelegate(QStyledItemDelegate):
@@ -34,15 +47,68 @@ class ClipboardItemDelegate(QStyledItemDelegate):
         self._copied_item_id: str | None = None
         self._hovered_btn: tuple[str, str] | None = None  # (item_id, "pin"|"copy"|"delete")
         self._theme_name = "dark"
+        self._color_scheme = DEFAULT_COLOR_SCHEME
         self._palette = DELEGATE_PALETTES["dark"]
+        self._font_family = DEFAULT_FONT_FAMILY
+        self._font_size = DEFAULT_FONT_SIZE
+        self._font_style = DEFAULT_FONT_STYLE
 
-    def set_theme(self, theme_name: str):
-        """Update active theme palette for painting."""
+    def set_theme(self, theme_name: str, color_scheme: str | None = None):
+        """Update active theme palette and optional color scheme for painting."""
         self._theme_name = theme_name if theme_name in DELEGATE_PALETTES else "dark"
-        self._palette = DELEGATE_PALETTES[self._theme_name]
+        if color_scheme is not None:
+            self._color_scheme = normalize_color_scheme(color_scheme)
+        self._palette = get_delegate_palette(self._theme_name, self._color_scheme)
+
+    def set_color_scheme(self, color_scheme: str):
+        """Update active color scheme while preserving current light/dark mode."""
+        self._color_scheme = normalize_color_scheme(color_scheme)
+        self._palette = get_delegate_palette(self._theme_name, self._color_scheme)
+
+    def set_font(
+        self,
+        font_family: str = DEFAULT_FONT_FAMILY,
+        font_size: int = DEFAULT_FONT_SIZE,
+        font_style: str = DEFAULT_FONT_STYLE,
+    ):
+        """Update font family, pixel size, and style used for card painting."""
+        self._font_family = sanitize_font_family(font_family)
+        self._font_size = clamp_font_size(font_size)
+        self._font_style = normalize_font_style(font_style)
+
+    def _build_font(
+        self,
+        size_offset: int = 0,
+        force_bold: bool = False,
+        respect_style: bool = True,
+    ) -> QFont:
+        """Construct a QFont scaled from the configured base font settings."""
+        qt_family = resolve_qt_font_family(self._font_family)
+        base_pt = max(7, self._font_size - 3)
+        pt_size = max(6, base_pt + size_offset)
+        font = QFont(qt_family, pt_size)
+
+        if respect_style:
+            _, _, is_bold, is_italic = FONT_STYLE_OPTIONS[self._font_style]
+            font.setBold(is_bold or force_bold)
+            font.setItalic(is_italic)
+        elif force_bold:
+            font.setBold(True)
+        return font
+
+    @staticmethod
+    def _button_rects(option_rect: QRect) -> tuple[QRect, QRect, QRect, QRect]:
+        """Compute card rect and right-aligned action button rectangles."""
+        rect = option_rect.adjusted(6, 3, -6, -3)
+        btn_y = rect.y() + (rect.height() - 26) // 2
+        pin_rect = QRect(rect.right() - 110, btn_y, 26, 26)
+        copy_rect = QRect(rect.right() - 80, btn_y, 48, 26)
+        del_rect = QRect(rect.right() - 28, btn_y, 26, 26)
+        return rect, pin_rect, copy_rect, del_rect
 
     def sizeHint(self, option: QStyleOptionViewItem, index) -> QSize:
-        return QSize(option.rect.width(), 64)
+        extra_height = max(0, (self._font_size - DEFAULT_FONT_SIZE) * 3)
+        return QSize(option.rect.width(), 64 + extra_height)
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index):
         painter.save()
@@ -76,52 +142,66 @@ class ClipboardItemDelegate(QStyledItemDelegate):
         painter.drawRoundedRect(rect, 8, 8)
 
         # ── Left Column: Preview Text ─────────────────────────────────
-        text_font = QFont("Ubuntu", 10)
+        text_font = self._build_font(size_offset=0, respect_style=True)
         painter.setFont(text_font)
         painter.setPen(QPen(QColor(p["text_primary"])))
 
-        text_rect = QRect(rect.x() + 12, rect.y() + 8, rect.width() - 135, 20)
         metrics = painter.fontMetrics()
+        text_height = max(20, metrics.height() + 4)
+        text_rect = QRect(rect.x() + 12, rect.y() + 8, rect.width() - 135, text_height)
         elided_text = metrics.elidedText(preview, Qt.TextElideMode.ElideRight, text_rect.width())
         painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, elided_text)
 
         # ── Left Column: Metadata Row ─────────────────────────────────
-        time_font = QFont("Ubuntu", 8)
+        meta_y = rect.y() + 8 + text_height + 4
+        time_font = self._build_font(size_offset=-2, respect_style=True)
         painter.setFont(time_font)
         painter.setPen(QPen(QColor(p["text_secondary"])))
 
-        time_rect = QRect(rect.x() + 12, rect.y() + 32, 60, 16)
+        time_metrics = painter.fontMetrics()
+        time_width = max(60, time_metrics.horizontalAdvance(time_str) + 12)
+        meta_height = max(16, time_metrics.height() + 2)
+        time_rect = QRect(rect.x() + 12, meta_y, time_width, meta_height)
         painter.drawText(time_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, time_str)
 
         if line_count > 1:
-            badge_rect = QRect(rect.x() + 72, rect.y() + 32, 46, 16)
-            painter.setPen(QPen(QColor(p["badge_border"]), 1))
-            painter.setBrush(QBrush(QColor(p["badge_bg"])))
-            painter.drawRoundedRect(badge_rect, 4, 4)
-
-            badge_font = QFont("Ubuntu", 7)
+            badge_font = self._build_font(size_offset=-3, respect_style=True)
             painter.setFont(badge_font)
-            painter.setPen(QPen(QColor(p["badge_text"])))
-            painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, f"{line_count} lines")
+            badge_metrics = painter.fontMetrics()
+            badge_text = f"{line_count} lines"
+            badge_width = max(46, badge_metrics.horizontalAdvance(badge_text) + 12)
+            max_badge_width = max(0, rect.right() - 118 - (rect.x() + 12 + time_width))
+            if max_badge_width >= 36:
+                badge_rect = QRect(
+                    rect.x() + 12 + time_width,
+                    meta_y,
+                    min(badge_width, max_badge_width),
+                    meta_height,
+                )
+                painter.setPen(QPen(QColor(p["badge_border"]), 1))
+                painter.setBrush(QBrush(QColor(p["badge_bg"])))
+                painter.drawRoundedRect(badge_rect, 4, 4)
+
+                painter.setPen(QPen(QColor(p["badge_text"])))
+                painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, badge_text)
 
         # ── Right Column: Buttons ─────────────────────────────────────
-        btn_y = rect.y() + (rect.height() - 26) // 2
+        _, pin_rect, copy_rect, del_rect = self._button_rects(option.rect)
+        btn_family = resolve_qt_font_family(self._font_family)
 
         # 1. Pin Button (26x26)
-        pin_rect = QRect(rect.right() - 110, btn_y, 26, 26)
         pin_hover = self._hovered_btn == (item_id, "pin")
         if pin_hover:
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(QColor(p["pin_hover_bg"])))
             painter.drawRoundedRect(pin_rect, 5, 5)
 
-        painter.setFont(QFont("Ubuntu", 10))
+        painter.setFont(QFont(btn_family, 10))
         pin_color = QColor(p["pin_active"] if pinned else (p["pin_hover"] if pin_hover else p["pin_inactive"]))
         painter.setPen(QPen(pin_color))
         painter.drawText(pin_rect, Qt.AlignmentFlag.AlignCenter, "📌")
 
         # 2. Copy Button (48x26)
-        copy_rect = QRect(rect.right() - 80, btn_y, 48, 26)
         copy_hover = self._hovered_btn == (item_id, "copy")
         is_just_copied = self._copied_item_id == item_id
 
@@ -138,12 +218,11 @@ class ClipboardItemDelegate(QStyledItemDelegate):
         painter.setBrush(QBrush(copy_bg))
         painter.drawRoundedRect(copy_rect, 5, 5)
 
-        painter.setFont(QFont("Ubuntu", 8, QFont.Weight.Bold if is_just_copied else QFont.Weight.Normal))
+        painter.setFont(QFont(btn_family, 8, QFont.Weight.Bold if is_just_copied else QFont.Weight.Normal))
         painter.setPen(QPen(copy_fg))
         painter.drawText(copy_rect, Qt.AlignmentFlag.AlignCenter, copy_label)
 
         # 3. Delete Button (26x26)
-        del_rect = QRect(rect.right() - 28, btn_y, 26, 26)
         del_hover = self._hovered_btn == (item_id, "delete")
         if del_hover:
             painter.setPen(QPen(QColor(p["del_border_hover"]), 1))
@@ -155,7 +234,7 @@ class ClipboardItemDelegate(QStyledItemDelegate):
             del_fg = QColor(p["del_fg"])
 
         painter.drawRoundedRect(del_rect, 5, 5)
-        painter.setFont(QFont("Ubuntu", 9, QFont.Weight.Bold))
+        painter.setFont(QFont(btn_family, 9, QFont.Weight.Bold))
         painter.setPen(QPen(del_fg))
         painter.drawText(del_rect, Qt.AlignmentFlag.AlignCenter, "✕")
 
@@ -163,12 +242,7 @@ class ClipboardItemDelegate(QStyledItemDelegate):
 
     def editorEvent(self, event: QEvent, model, option: QStyleOptionViewItem, index) -> bool:
         """Handle mouse clicks on action buttons and cards."""
-        rect = option.rect.adjusted(6, 3, -6, -3)
-        btn_y = rect.y() + (rect.height() - 26) // 2
-
-        pin_rect = QRect(rect.right() - 110, btn_y, 26, 26)
-        copy_rect = QRect(rect.right() - 80, btn_y, 48, 26)
-        del_rect = QRect(rect.right() - 28, btn_y, 26, 26)
+        rect, pin_rect, copy_rect, del_rect = self._button_rects(option.rect)
 
         pos = event.position().toPoint() if hasattr(event, "position") else event.pos()
         item_id = str(index.data(ItemIdRole) or "")
@@ -221,4 +295,7 @@ class ClipboardItemDelegate(QStyledItemDelegate):
     def _reset_copy(self, widget):
         self._copied_item_id = None
         if widget:
-            widget.update()
+            try:
+                widget.update()
+            except RuntimeError:
+                pass
