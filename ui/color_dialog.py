@@ -71,11 +71,13 @@ class ColorOptionsDialog(QDialog):
 
         self._build_ui()
         self._refresh_selection()
+        self.ensurePolished()
+        self.adjustSize()
 
     def _build_ui(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(18, 16, 18, 16)
-        root.setSpacing(12)
+        root.setContentsMargins(16, 14, 16, 14)
+        root.setSpacing(10)
 
         heading = QLabel("Clipboard Color Options")
         heading.setObjectName("dialogHeading")
@@ -89,7 +91,7 @@ class ColorOptionsDialog(QDialog):
 
         grid = QGridLayout()
         grid.setHorizontalSpacing(10)
-        grid.setVerticalSpacing(8)
+        grid.setVerticalSpacing(6)
 
         for index, scheme_name in enumerate(COLOR_SCHEMES):
             swatches = get_scheme_swatches(self._theme_name, scheme_name)
@@ -98,7 +100,7 @@ class ColorOptionsDialog(QDialog):
             btn.setIcon(_build_swatch_icon(swatches))
             btn.setIconSize(QSize(46, 16))
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setMinimumHeight(40)
+            btn.setMinimumHeight(36)
             desc = COLOR_SCHEME_DESCRIPTIONS.get(scheme_name, scheme_name)
             btn.setToolTip(f"{scheme_name}: {desc}")
             btn.clicked.connect(lambda _checked=False, name=scheme_name: self._on_select_scheme(name))

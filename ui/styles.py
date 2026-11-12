@@ -1520,8 +1520,17 @@ QPushButton#themeToggleBtn:hover, QPushButton#fontSettingsBtn:hover, QPushButton
 }}
 
 /* ── Settings Dialogs ────────────────────────────────── */
+QFrame#modalBackdrop {{
+    background-color: rgba(0, 0, 0, 145);
+}}
+
 QDialog#fontOptionsDialog, QDialog#colorOptionsDialog {{
     background-color: {c["dialog_bg"]};
+}}
+
+QDialog#fontOptionsDialog[modalOverlay="true"], QDialog#colorOptionsDialog[modalOverlay="true"] {{
+    border: 1px solid {c["btn_border"]};
+    border-radius: 12px;
 }}
 
 QLabel#dialogHeading {{

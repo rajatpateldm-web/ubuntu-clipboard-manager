@@ -60,6 +60,8 @@ class FontOptionsDialog(QDialog):
         self._build_ui()
         self._sync_controls(self._font_family, self._font_size, self._font_style)
         self._update_preview()
+        self.ensurePolished()
+        self.adjustSize()
 
     def _build_ui(self):
         root = QVBoxLayout(self)
@@ -116,7 +118,7 @@ class FontOptionsDialog(QDialog):
         self._preview_card.setObjectName("fontPreviewCard")
         self._preview_card.setSizePolicy(
             QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.MinimumExpanding,
+            QSizePolicy.Policy.Preferred,
         )
         preview_layout = QVBoxLayout(self._preview_card)
         preview_layout.setContentsMargins(12, 10, 12, 10)
@@ -126,7 +128,7 @@ class FontOptionsDialog(QDialog):
         self._preview_text.setWordWrap(True)
         self._preview_text.setSizePolicy(
             QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.MinimumExpanding,
+            QSizePolicy.Policy.Preferred,
         )
         self._preview_meta = QLabel("Just now  |  3 lines")
         self._preview_meta.setObjectName("fontPreviewMeta")

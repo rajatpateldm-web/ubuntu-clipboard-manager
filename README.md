@@ -73,7 +73,7 @@ Other native distribution channels (`Flathub` under `com.teckscaler.ClipVault`, 
 ./test_clipboard.sh
 ```
 
-The automated test suite verifies SQLite WAL persistence and `0o600` file permissions, MIME password filtering, negative-flag validation, bounded IPC parsing, theme and color scheme switching, font options, X11/XWayland background helper capture, keyboard navigation, and `QListView` virtualization (`65` unit checks plus E2E window checks).
+The automated test suite verifies SQLite WAL persistence and `0o600` file permissions, MIME password filtering, negative-flag validation, bounded IPC parsing, theme and color scheme switching, font options, X11/XWayland background helper capture, keyboard navigation, and `QListView` virtualization (`68` unit checks plus E2E window checks).
 
 ## Documentation and Contributing
 

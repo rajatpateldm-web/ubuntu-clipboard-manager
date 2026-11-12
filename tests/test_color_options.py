@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from PyQt6.QtCore import QRect, QSettings, Qt
+from PyQt6.QtCore import QRect, QSettings, Qt, QTimer
 from PyQt6.QtGui import QImage, QPainter
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QStyleOptionViewItem
@@ -180,6 +180,29 @@ class TestDelegateAndMainWindowColorOptions(unittest.TestCase):
         self.assertEqual(emissions[-1], DEFAULT_COLOR_SCHEME)
         self.assertEqual(dialog._scheme_buttons["Classic"].property("selected"), "true")
         dialog.close()
+
+    def test_color_options_centered_in_window_overlay(self):
+        window = self._create_window()
+        window.show()
+        self.app.processEvents()
+
+        captured = {}
+
+        def _capture_and_close():
+            dlg = window._active_modal_dialog
+            if dlg is not None:
+                captured["dlg_rect"] = dlg.geometry()
+                captured["win_rect"] = window.rect()
+                dlg.accept()
+
+        QTimer.singleShot(50, _capture_and_close)
+        window._on_open_color_options()
+
+        dlg_rect = captured["dlg_rect"]
+        win_rect = captured["win_rect"]
+        self.assertTrue(win_rect.contains(dlg_rect))
+        self.assertLessEqual(abs(dlg_rect.center().y() - win_rect.center().y()), 12)
+        self.assertIsNone(window._active_modal_dialog)
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ to achieve constant O(1) memory usage regardless of clipboard history size.
 
 import time
 
-from PyQt6.QtCore import Qt, QSettings, QEvent
+from PyQt6.QtCore import Qt, QEvent, QEventLoop, QSettings
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -40,6 +40,27 @@ from ui.styles import (
 )
 
 
+class _ModalBackdrop(QFrame):
+    """Dimmed in-window overlay container that centers modal dialogs over MainWindow."""
+
+    def __init__(self, parent: QWidget, dialog):
+        super().__init__(parent)
+        self._dialog = dialog
+        self.setObjectName("modalBackdrop")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+    def mousePressEvent(self, event):
+        # Close modal when clicking the dimmed scrim outside the dialog card
+        if self.childAt(event.position().toPoint()) is None and self._dialog is not None:
+            self._dialog.accept()
+            return
+        super().mousePressEvent(event)
+
+
 class MainWindow(QMainWindow):
     """
     Primary window for ClipVault clipboard manager.
@@ -58,6 +79,8 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(400, 500)
         self.resize(500, 700)
         self.setObjectName("mainWindow")
+        self._active_backdrop: _ModalBackdrop | None = None
+        self._active_modal_dialog = None
 
         # ── Theme & Font Preferences ──────────────────────────────────
         self._settings = QSettings("ClipVault", "App")
@@ -298,6 +321,42 @@ class MainWindow(QMainWindow):
 
         self._apply_appearance()
 
+    def _run_modal_overlay(self, dialog) -> int:
+        """Present a dialog centered inside MainWindow so Wayland compositors cannot misplace it."""
+        if self._active_modal_dialog is not None:
+            self._active_modal_dialog.reject()
+
+        backdrop = _ModalBackdrop(self, dialog)
+        dialog.setParent(backdrop)
+        dialog.setWindowFlags(Qt.WindowType.Widget)
+        dialog.setProperty("modalOverlay", "true")
+        dialog.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        dialog.style().unpolish(dialog)
+        dialog.style().polish(dialog)
+        dialog.ensurePolished()
+        dialog.adjustSize()
+
+        backdrop.layout().addWidget(dialog, 0, Qt.AlignmentFlag.AlignCenter)
+        backdrop.setGeometry(self.rect())
+
+        loop = QEventLoop(self)
+        dialog.finished.connect(loop.quit)
+
+        self._active_backdrop = backdrop
+        self._active_modal_dialog = dialog
+        try:
+            backdrop.show()
+            backdrop.raise_()
+            dialog.show()
+            dialog.setFocus()
+            loop.exec()
+            return dialog.result()
+        finally:
+            self._active_backdrop = None
+            self._active_modal_dialog = None
+            backdrop.hide()
+            backdrop.deleteLater()
+
     def _on_open_color_options(self):
         """Open the Clipboard Color Options dialog."""
         dialog = ColorOptionsDialog(
@@ -306,7 +365,7 @@ class MainWindow(QMainWindow):
             parent=self,
         )
         dialog.color_scheme_changed.connect(lambda scheme: self.set_color_scheme(scheme, persist=True))
-        dialog.exec()
+        self._run_modal_overlay(dialog)
 
     def set_color_scheme(self, color_scheme: str, persist: bool = True):
         """Apply clipboard color scheme globally and persist preference."""
@@ -324,7 +383,7 @@ class MainWindow(QMainWindow):
             parent=self,
         )
         dialog.font_changed.connect(self._on_font_dialog_changed)
-        dialog.exec()
+        self._run_modal_overlay(dialog)
 
     def _on_font_dialog_changed(self, font_family: str, font_size: int, font_style: str):
         """Handle live font updates from FontOptionsDialog."""
@@ -381,11 +440,20 @@ class MainWindow(QMainWindow):
         return super().eventFilter(watched, event)
 
     def keyPressEvent(self, event):
-        """Dismiss window on Escape key."""
+        """Dismiss modal overlay first, otherwise hide window on Escape key."""
         if event.key() == Qt.Key.Key_Escape:
+            if self._active_modal_dialog is not None:
+                self._active_modal_dialog.reject()
+                return
             self.hide()
             return
         super().keyPressEvent(event)
+
+    def resizeEvent(self, event):
+        """Keep active modal backdrop sized to MainWindow."""
+        super().resizeEvent(event)
+        if getattr(self, "_active_backdrop", None) is not None:
+            self._active_backdrop.setGeometry(self.rect())
 
     # ──────────────────────────────────────────────────────────────────
     # Slots
@@ -479,5 +547,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """Clean shutdown."""
+        if getattr(self, "_active_modal_dialog", None) is not None:
+            self._active_modal_dialog.reject()
         self._service.stop()
         super().closeEvent(event)

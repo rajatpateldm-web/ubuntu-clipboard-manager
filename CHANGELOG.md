@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-12
+
 ### Added
 
 - Font customization dialog (`ui/font_dialog.py`) with font family presets (`System Default`, `Ubuntu`, `Sans Serif`, `Monospace`, `Serif`), installed system fonts via `QFontDatabase`, font styles (`Regular`, `Bold`, `Italic`, `Bold Italic`), font sizes (`10 px` to `22 px`), live preview, reset, and `QSettings` persistence.
@@ -17,7 +19,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Changed
 
 - Scaled `ClipboardItemDelegate` card height and metadata layout dynamically when font size increases above `13 px`, and consolidated card/button hit-testing geometry into a single `_button_rects()` helper.
-- Adjusted `FontOptionsDialog` and `ColorOptionsDialog` window titles, widths, and titlebar button hints to prevent title clipping on GNOME Wayland headerbars.
+- Adjusted `FontOptionsDialog` and `ColorOptionsDialog` into centered in-window modal overlays inside `MainWindow` with compact padding so they remain vertically centered and unclipped under GNOME Wayland compositors.
+- Bundled `adwaita-icon-theme` and `hicolor-icon-theme` in `snap/snapcraft.yaml` and configured `$SNAP/usr/share/icons` and `Adwaita` icon theme fallback in `main.py` so Wayland window control icons render inside strict confinement.
 - Consolidated SQLite connection lifecycle in `DatabaseService._connect()`, restricted `.db`, `-wal`, and `-shm` file permissions to `0o600`, and enforced non-negative query limits.
 - Replaced duplicated Qt focus-capture paths in `ClipboardService` with `_capture_active_qt_clipboard()`, centralized `sort_history_items()` and `MAX_TEXT_LENGTH`, and replaced silent `except Exception: pass` blocks with targeted exception handling and debug logging.
 - Hardened IPC command handling in `main.py` with bounded `64`-byte reads, exact `"toggle"` command matching, and socket cleanup.

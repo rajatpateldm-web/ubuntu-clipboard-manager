@@ -7,9 +7,11 @@ Run from the project root (with the venv active):
 """
 
 import logging
+import os
 import sys
 
 from PyQt6.QtCore import QSettings
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 
@@ -35,6 +37,20 @@ def parse_ipc_command(raw_data: bytes) -> str:
     return raw_data[:_MAX_IPC_BYTES].decode("utf-8", errors="ignore").strip()
 
 
+def configure_icon_theme() -> None:
+    """Ensure Wayland window decoration icons resolve inside strict Snap confinement."""
+    snap_dir = os.environ.get("SNAP")
+    if snap_dir:
+        snap_icons = os.path.join(snap_dir, "usr", "share", "icons")
+        if os.path.isdir(snap_icons):
+            paths = QIcon.themeSearchPaths()
+            if snap_icons not in paths:
+                QIcon.setThemeSearchPaths([snap_icons, *paths])
+    if not QIcon.themeName():
+        QIcon.setThemeName("Adwaita")
+    QIcon.setFallbackThemeName("Adwaita")
+
+
 def main():
     logging.basicConfig(
         level=logging.INFO,
@@ -56,6 +72,7 @@ def main():
     # Otherwise, this is the primary instance. Create the Qt application.
     app = QApplication(sys.argv)
     app.setApplicationName("ClipVault")
+    configure_icon_theme()
 
     # Load saved theme, color scheme, and font preferences from QSettings
     settings = QSettings("ClipVault", "App")

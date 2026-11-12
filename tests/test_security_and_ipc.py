@@ -10,7 +10,10 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from main import _MAX_IPC_BYTES, parse_ipc_command
+from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import QApplication
+
+from main import _MAX_IPC_BYTES, configure_icon_theme, parse_ipc_command
 from services.clipboard_service import MAX_TEXT_LENGTH, normalize_text, sort_history_items
 from services.database_service import DatabaseService
 
@@ -64,6 +67,16 @@ class TestSecurityAndResourceSafety(unittest.TestCase):
         self.assertNotEqual(parse_ipc_command(b"not_toggle\n"), "toggle")
         oversized = (b" " * _MAX_IPC_BYTES) + b"toggle"
         self.assertEqual(parse_ipc_command(oversized), "")
+
+    def test_configure_icon_theme_registers_snap_icons_and_adwaita_fallback(self):
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        _app = QApplication.instance() or QApplication([])
+        snap_icons = os.path.join(self.temp_dir, "usr", "share", "icons")
+        os.makedirs(snap_icons, exist_ok=True)
+        with patch.dict(os.environ, {"SNAP": self.temp_dir}):
+            configure_icon_theme()
+            self.assertIn(snap_icons, QIcon.themeSearchPaths())
+            self.assertEqual(QIcon.fallbackThemeName(), "Adwaita")
 
 
 if __name__ == "__main__":
