@@ -30,12 +30,38 @@ import subprocess
 import time
 import uuid
 
+from services.database_service import DatabaseService
+from services.sensitive_detector import (
+    is_sensitive_mime_data,
+    is_sensitive_targets,
+)
+
 from PyQt6.QtCore import QObject, QThread, QTimer, pyqtSignal
 from PyQt6.QtWidgets import QApplication
 
 log = logging.getLogger("ClipVault.clipboard")
 
 MAX_HISTORY = 100
+
+
+def normalize_text(text: str) -> str:
+    """
+    Normalize clipboard text to guarantee robust multi-line duplicate prevention
+    and consistent comparison by standardizing line endings, removing null bytes,
+    and stripping leading/trailing whitespace.
+    """
+    if not text:
+        return ""
+    # Standardize line endings to standard Unix LF (\n)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    # Remove null bytes (often returned by CLI clipboard watchers or tools)
+    text = text.replace("\0", "")
+    # Guard against unbounded memory consumption by capping massive payloads
+    if len(text) > 1_000_000:
+        text = text[:1_000_000]
+    # Strip trailing and leading whitespace/newlines for clean storage & comparison
+    return text.strip()
+
 
 
 def _detect_session_type() -> str:
@@ -58,6 +84,20 @@ def _find_clipboard_command() -> list[str] | None:
     return None
 
 
+def _find_targets_command(clip_cmd: list[str] | None) -> list[str] | None:
+    """Find the CLI command to query clipboard targets / MIME types."""
+    if not clip_cmd:
+        return None
+    tool = clip_cmd[0]
+    if "xclip" in tool:
+        return ["xclip", "-selection", "clipboard", "-t", "TARGETS", "-o"]
+    if "xsel" in tool:
+        return ["xsel", "--clipboard", "-t", "TARGETS"]
+    if "wl-paste" in tool:
+        return ["wl-paste", "--list-types"]
+    return None
+
+
 class ClipboardWorker(QThread):
     """
     Background worker thread to perform safe, off-thread subprocess monitoring.
@@ -65,9 +105,10 @@ class ClipboardWorker(QThread):
     """
     text_detected = pyqtSignal(str)
 
-    def __init__(self, cmd: list[str], interval_ms: int, use_watch_mode: bool, parent=None):
+    def __init__(self, cmd: list[str], interval_ms: int, use_watch_mode: bool, targets_cmd: list[str] | None = None, parent=None):
         super().__init__(parent)
         self.cmd = cmd
+        self.targets_cmd = targets_cmd or _find_targets_command(cmd)
         self.interval_ms = interval_ms
         self.use_watch_mode = use_watch_mode
         self._running = True
@@ -83,6 +124,51 @@ class ClipboardWorker(QThread):
             self._enabled = True
         else:
             self._enabled = enabled
+
+    def _is_sensitive_cli(self, clean_env: dict) -> bool:
+        """Check CLI targets/MIME types to see if current clipboard holds sensitive content."""
+        if not self.targets_cmd:
+            return False
+        try:
+            res = subprocess.run(
+                self.targets_cmd,
+                capture_output=True,
+                text=True,
+                errors="replace",
+                env=clean_env,
+                timeout=0.4
+            )
+            if res.returncode == 0 and res.stdout:
+                return is_sensitive_targets(res.stdout)
+        except Exception:
+            pass
+        return False
+
+    def _check_clipboard_poll(self, clean_env: dict):
+        """Perform a single poll iteration, checking sensitivity before capturing text."""
+        if not (self._enabled and self.cmd):
+            return
+
+        # Check targets/MIME types first for sensitive password manager hints
+        if self._is_sensitive_cli(clean_env):
+            return
+
+        try:
+            result = subprocess.run(
+                self.cmd,
+                capture_output=True,
+                text=True,
+                errors="replace",
+                env=clean_env,
+                timeout=0.4  # Ultra-short timeout
+            )
+            if result.returncode == 0:
+                text = result.stdout
+                if text and text != self._last_text:
+                    self._last_text = text
+                    self.text_detected.emit(text)
+        except Exception:
+            pass
 
     def run(self):
         # Copy and clean the environment to prevent GNOME from showing startup/launch
@@ -128,9 +214,12 @@ class ClipboardWorker(QThread):
                         accumulated += chunk
                         while "\0" in accumulated:
                             text, accumulated = accumulated.split("\0", 1)
-                            # Emit the detected text
+                            # Emit the detected text only if not sensitive
                             if text:
-                                self.text_detected.emit(text)
+                                if self._is_sensitive_cli(clean_env):
+                                    log.info("Dropped sensitive clipboard event from wl-paste watch")
+                                else:
+                                    self.text_detected.emit(text)
                 except Exception:
                     pass
                 finally:
@@ -144,23 +233,7 @@ class ClipboardWorker(QThread):
                     time.sleep(1)  # Throttle restarts
             else:
                 # ── Standard Polling Fallback ─────────────────────────────
-                if self._enabled and self.cmd:
-                    try:
-                        result = subprocess.run(
-                            self.cmd,
-                            capture_output=True,
-                            text=True,
-                            errors="replace",
-                            env=clean_env,
-                            timeout=0.4  # Ultra-short timeout
-                        )
-                        if result.returncode == 0:
-                            text = result.stdout
-                            if text and text != self._last_text:
-                                self._last_text = text
-                                self.text_detected.emit(text)
-                    except Exception:
-                        pass
+                self._check_clipboard_poll(clean_env)
                 time.sleep(self.interval_ms / 1000.0)
 
     def stop(self):
@@ -178,8 +251,8 @@ class ClipboardService(QObject):
     Performance-optimized three-tier clipboard service with off-thread worker.
     Tracks clipboard history using unique IDs to ensure precise UI deletion sync.
     """
-    # Emits (item_id, text)
-    new_item = pyqtSignal(str, str)
+    # Emits (item_id, text, timestamp)
+    new_item = pyqtSignal(str, str, float)
     # Emits item_id of the trimmed item
     item_trimmed = pyqtSignal(str)
 
@@ -188,10 +261,15 @@ class ClipboardService(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
 
+        # ── Database Service ──────────────────────────────────────────
+        self._db = DatabaseService()
+
         # ── State ─────────────────────────────────────────────────────
-        # Holds list of dicts: [{"id": str, "text": str}]
-        self.history: list[dict] = []
+        # Holds list of dicts: [{"id": str, "text": str, "timestamp": float}]
+        self.history: list[dict] = self._db.load_history()
         self._last_text: str = ""
+        if self.history:
+            self._last_text = self.history[0]["text"]
         self._ignore_next: bool = False
         self._ignore_text: str | None = None
 
@@ -209,14 +287,15 @@ class ClipboardService(QObject):
         self._clipboard.dataChanged.connect(self._on_qt_signal)
 
         # ── Tier 2: Dedicated Polling/Watch Thread ────────────────────
+        self._targets_cmd = _find_targets_command(self._clip_cmd)
         self._worker = ClipboardWorker(
             self._clip_cmd,
             self.POLL_INTERVAL_MS,
             self._use_watch_mode,
+            self._targets_cmd,
             self
         )
         self._worker.text_detected.connect(self._process_text)
-        self._worker.start()
 
         # ── Tier 3: Qt Polling Fallback (Only active when CLI tools missing) ──
         self._qt_timer = QTimer(self)
@@ -227,13 +306,16 @@ class ClipboardService(QObject):
         self._focus_timer = QTimer(self)
         self._focus_timer.setInterval(1000)
         self._focus_timer.timeout.connect(self._check_focus_state)
-        self._focus_timer.start()
 
         # Initial check
         self._check_focus_state()
 
     def start(self):
         """Start standard timers/threads."""
+        if not self._worker.isRunning():
+            self._worker.start()
+        if not self._focus_timer.isActive():
+            self._focus_timer.start()
         if not self._clip_cmd:
             self._qt_timer.start()
 
@@ -241,15 +323,41 @@ class ClipboardService(QObject):
         """Clean shutdown to avoid dangling threads or memory leaks."""
         self._focus_timer.stop()
         self._qt_timer.stop()
-        self._worker.stop()
+        if hasattr(self, "_worker") and self._worker.isRunning():
+            self._worker.stop()
         try:
             self._clipboard.dataChanged.disconnect(self._on_qt_signal)
-        except RuntimeError:
+        except (RuntimeError, TypeError):
             pass
 
     def remove_item(self, item_id: str):
         """Remove item from history using its unique ID."""
+        removed_text = None
+        for item in self.history:
+            if item["id"] == item_id:
+                removed_text = item["text"]
+                break
+
         self.history = [item for item in self.history if item["id"] != item_id]
+        self._db.delete_item(item_id)
+
+        # If the deleted item is the active one in the system clipboard, clear or update the system clipboard
+        if removed_text:
+            current_clipboard_text = normalize_text(self._clipboard.text())
+            if current_clipboard_text == normalize_text(removed_text):
+                next_text = ""
+                if self.history:
+                    next_text = self.history[0]["text"]
+
+                self.set_ignore_next(next_text)
+                if next_text:
+                    self._clipboard.setText(next_text)
+                else:
+                    self._clipboard.clear()
+
+                self._last_text = next_text
+                if hasattr(self, "_worker"):
+                    self._worker._last_text = next_text
 
     def clear_ignore_text(self):
         """Clear the ignore filter state."""
@@ -261,6 +369,23 @@ class ClipboardService(QObject):
         self._ignore_next = True
         self._ignore_text = text
         QTimer.singleShot(500, self.clear_ignore_text)
+
+    def set_item_pinned(self, item_id: str, pinned: bool):
+        """Update the pinned state of an item in service history and database."""
+        for item in self.history:
+            if item["id"] == item_id:
+                item["pinned"] = pinned
+                break
+        
+        # Keep history sorted: pinned items first (newest-first), then unpinned items (newest-first)
+        self.history.sort(key=lambda x: (x.get("pinned", False), x.get("timestamp", 0.0)), reverse=True)
+        
+        # Update SQLite database
+        self._db.set_pinned(item_id, pinned)
+
+        # Enforce history limit in case unpinning caused unpinned items to exceed limit
+        if not pinned:
+            self._trim_history()
 
     def _check_focus_state(self):
         """
@@ -281,43 +406,85 @@ class ClipboardService(QObject):
         if not is_focused:
             return
 
-        if self._ignore_next or (self._ignore_text and self._clipboard.text() == self._ignore_text):
+        # Check sensitive password manager hints before reading text
+        mime_data = self._clipboard.mimeData()
+        if is_sensitive_mime_data(mime_data):
+            log.info("Ignored sensitive clipboard text (password manager hint detected)")
             return
-        self._process_text(self._clipboard.text())
+
+        raw_text = self._clipboard.text()
+        normalized = normalize_text(raw_text)
+        if self._ignore_next or (self._ignore_text and normalized == normalize_text(self._ignore_text)):
+            return
+        self._process_text(raw_text)
 
     def _on_qt_poll_tick(self):
         """Tier 3 callback: Standard Qt polling fallback."""
         if not self._clip_cmd:
             is_focused = QApplication.activeWindow() is not None
             if is_focused:
+                mime_data = self._clipboard.mimeData()
+                if is_sensitive_mime_data(mime_data):
+                    log.info("Ignored sensitive clipboard text during Qt polling")
+                    return
                 self._process_text(self._clipboard.text())
 
     def _process_text(self, text: str):
         """Central deduplication gate."""
-        if not text or not text.strip():
+        # Safeguard: if activeWindow is focused, verify mime data is not sensitive
+        if QApplication.activeWindow() is not None:
+            try:
+                if is_sensitive_mime_data(self._clipboard.mimeData()):
+                    log.info("Ignored sensitive clipboard text in _process_text")
+                    return
+            except Exception:
+                pass
+
+        normalized = normalize_text(text)
+        if not normalized:
             return
 
-        if text == self._last_text:
+        if normalized == normalize_text(self._last_text):
             return
 
-        if self._ignore_next or (self._ignore_text and text == self._ignore_text):
+        if self._ignore_next or (self._ignore_text and normalized == normalize_text(self._ignore_text)):
             return
 
-        self._last_text = text
+        self._last_text = normalized
         # Synchronize back to the worker thread to prevent duplicate events on focus shift
         if hasattr(self, "_worker"):
-            self._worker._last_text = text
+            self._worker._last_text = normalized
 
         item_id = uuid.uuid4().hex
-        self.history.insert(0, {"id": item_id, "text": text})
-        self.new_item.emit(item_id, text)
+        timestamp = time.time()
+        # New items are always unpinned initially
+        self.history.insert(0, {"id": item_id, "text": normalized, "timestamp": timestamp, "pinned": False})
+        # Keep history sorted: pinned items first (newest-first), then unpinned items (newest-first)
+        self.history.sort(key=lambda x: (x.get("pinned", False), x.get("timestamp", 0.0)), reverse=True)
+        
+        self._db.save_item(item_id, normalized, timestamp, pinned=False)
+        self.new_item.emit(item_id, normalized, timestamp)
 
         # Enforce history limit
         self._trim_history()
 
     def _trim_history(self):
-        """Silently discard old items and notify UI."""
-        while len(self.history) > MAX_HISTORY:
-            removed = self.history.pop()
-            self.item_trimmed.emit(removed["id"])
+        """Silently discard old unpinned items and notify UI."""
+        unpinned_items = [item for item in self.history if not item.get("pinned", False)]
+        while len(unpinned_items) > MAX_HISTORY:
+            # Find the oldest unpinned item. Since self.history is ordered,
+            # we iterate backwards to find the last (oldest) unpinned item.
+            oldest_unpinned = None
+            for item in reversed(self.history):
+                if not item.get("pinned", False):
+                    oldest_unpinned = item
+                    break
+
+            if oldest_unpinned:
+                self.history.remove(oldest_unpinned)
+                self._db.delete_item(oldest_unpinned["id"])
+                self.item_trimmed.emit(oldest_unpinned["id"])
+                unpinned_items = [item for item in self.history if not item.get("pinned", False)]
+            else:
+                break
 

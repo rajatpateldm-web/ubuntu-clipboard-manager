@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=ClipVault
+Comment=Lightweight clipboard manager for Linux
+Exec=com.teckscaler.ClipVault
+Icon=com.teckscaler.ClipVault
+Terminal=false
+Type=Application
+Categories=Utility;
+Keywords=clipboard;history;manager;copy;paste;
+StartupNotify=false

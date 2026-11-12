@@ -1,0 +1,32 @@
+#!/bin/sh
+# Launcher script for ClipVault inside snap
+export PYTHONPATH="$SNAP/lib/python3.12/site-packages:$SNAP:$PYTHONPATH"
+export QT_PLUGIN_PATH="$SNAP/lib/python3.12/site-packages/PyQt6/Qt6/plugins:${QT_PLUGIN_PATH}"
+export LD_LIBRARY_PATH="$SNAP/lib/python3.12/site-packages/PyQt6/Qt6/lib:$SNAP/usr/lib/x86_64-linux-gnu:$SNAP/usr/lib:$LD_LIBRARY_PATH"
+export PATH="$SNAP/usr/bin:$SNAP/bin:$PATH"
+
+# Ensure XDG_RUNTIME_DIR exists in snap confinement
+mkdir -p "$XDG_RUNTIME_DIR"
+
+# Link host Wayland display socket into snap's isolated XDG_RUNTIME_DIR
+if [ -n "$WAYLAND_DISPLAY" ]; then
+    HOST_WAYLAND="/run/user/$(id -u)/$WAYLAND_DISPLAY"
+    if [ -S "$HOST_WAYLAND" ] || [ -e "$HOST_WAYLAND" ]; then
+        ln -sf "$HOST_WAYLAND" "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY"
+    fi
+fi
+
+# Configure XKB keyboard paths for Wayland and Qt
+export XKB_CONFIG_ROOT="$SNAP/usr/share/X11/xkb"
+export QT_XKB_CONFIG_ROOT="$SNAP/usr/share/X11/xkb"
+
+if [ -z "$QT_QPA_PLATFORM" ]; then
+    if [ -n "$WAYLAND_DISPLAY" ] && [ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
+        export QT_QPA_PLATFORM="wayland;xcb"
+    else
+        export QT_QPA_PLATFORM="xcb"
+    fi
+fi
+export XDG_DATA_DIRS="$SNAP/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+
+exec python3 "$SNAP/main.py" "$@"

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.teckscaler.ClipVault</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>ClipVault</name>
+  <summary>A lightweight, privacy-aware clipboard manager for Linux</summary>
+  <developer id="com.teckscaler">
+    <name>Teckscaler</name>
+  </developer>
+
+  <description>
+    <p>
+      ClipVault is a lightweight, privacy-conscious clipboard manager for Linux desktop environments,
+      supporting both Wayland and X11 sessions.
+    </p>
+    <p>Key features include:</p>
+    <ul>
+      <li>Three-tier clipboard monitoring (instant Qt signals, off-thread background worker, and polling)</li>
+      <li>Automatic sensitive content detection and filtering for password managers such as KeePassXC, Bitwarden, 1Password, and KWallet</li>
+      <li>Virtualized list view for constant memory usage regardless of history size</li>
+      <li>Instant search filtering, pinned favorites, and single-click copy restoration</li>
+      <li>Single-instance architecture with desktop shortcut toggle support</li>
+      <li>Reliable SQLite persistent storage powered by Write-Ahead Logging (WAL) mode</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">com.teckscaler.ClipVault.desktop</launchable>
+
+  <url type="homepage">https://teckscaler.com/clipvault-clipboard-manager/</url>
+  <url type="bugtracker">https://github.com/rajatpateldm-web/ubuntu-clipboard-manager/issues</url>
+  <url type="vcs-browser">https://github.com/rajatpateldm-web/ubuntu-clipboard-manager</url>
+  <url type="contact">https://teckscaler.com/clipvault-clipboard-manager/#support-enquiries</url>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>ClipVault dark mode clipboard history displaying pinned items and search bar</caption>
+      <image type="source" width="1920" height="1080">https://teckscaler.com/wp-content/uploads/2026/11/screenshot-1-dark-mode.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>ClipVault light mode clipboard history with clean card layout and quick copy actions</caption>
+      <image type="source" width="1920" height="1080">https://teckscaler.com/wp-content/uploads/2026/11/screenshot-2-light-mode.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Side-by-side comparison of ClipVault dark and light themes</caption>
+      <image type="source" width="1060" height="720">https://teckscaler.com/wp-content/uploads/2026/11/clipvault_dual_theme_comparison.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Instant substring search filtering virtualized clipboard cards in ClipVault</caption>
+      <image type="source" width="1530" height="920">https://teckscaler.com/wp-content/uploads/2026/11/clipvault_privacy_security_cropped.png</image>
+    </screenshot>
+  </screenshots>
+
+  <provides>
+    <binary>clipvault</binary>
+  </provides>
+
+  <categories>
+    <category>Utility</category>
+    <category>Office</category>
+  </categories>
+
+  <content_rating type="oars-1.1" />
+
+  <releases>
+    <release version="1.0.0" date="2026-11-09">
+      <description>
+        <p>Initial release of ClipVault featuring three-tier monitoring, password manager filtering, and SQLite WAL storage.</p>
+      </description>
+    </release>
+  </releases>
+</component>

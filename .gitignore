@@ -1,4 +1,14 @@
 venv/
 __pycache__/
 *.pyc
+.pytest_cache/
+.agents/
+flathub/
 .env
+*.db
+clipvault.db
+*.db-shm
+*.db-wal
+*.snap
+*.snap.partial
+

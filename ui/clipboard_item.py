@@ -29,6 +29,7 @@ Layout:
 """
 
 from datetime import datetime
+import time
 
 from PyQt6.QtCore import QTimer, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
@@ -39,6 +40,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QVBoxLayout,
+    QWidget,
 )
 
 # Max characters in the preview text.
@@ -55,15 +57,20 @@ class ClipboardItemWidget(QFrame):
     -------
     delete_requested(str)
         Emitted when the user clicks the Delete button. Carries the item_id.
+    pin_toggled(str, bool)
+        Emitted when the user toggles the Pin button. Carries the item_id and the new pinned state.
     """
 
     delete_requested = pyqtSignal(str)
+    pin_toggled = pyqtSignal(str, bool)
 
-    def __init__(self, item_id: str, text: str, parent=None):
+    def __init__(self, item_id: str, text: str, timestamp: float = None, pinned: bool = False, parent=None):
         super().__init__(parent)
 
         self._id = item_id
         self._full_text = text
+        self._timestamp = timestamp or time.time()
+        self._pinned = pinned
 
         self.setObjectName("clipItem")
         self.setFrameShape(QFrame.Shape.StyledPanel)
@@ -97,9 +104,10 @@ class ClipboardItemWidget(QFrame):
         preview_label.setWordWrap(False)
         preview_label.setTextFormat(Qt.TextFormat.PlainText)
         preview_label.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Ignored,
             QSizePolicy.Policy.Fixed
         )
+        preview_label.setMinimumWidth(0)  # Allows shrinking below default text width
         preview_label.setFixedHeight(18)  # Strict fixed height prevents layout oscillation
 
         # Meta row
@@ -107,7 +115,8 @@ class ClipboardItemWidget(QFrame):
         meta_row.setSpacing(6)
         meta_row.setContentsMargins(0, 0, 0, 0)
 
-        ts = QLabel(datetime.now().strftime("%H:%M:%S"))
+        dt = datetime.fromtimestamp(self._timestamp)
+        ts = QLabel(dt.strftime("%H:%M:%S"))
         ts.setObjectName("itemTime")
         ts.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         ts.setFixedHeight(16)  # Strict height
@@ -125,10 +134,23 @@ class ClipboardItemWidget(QFrame):
         text_col.addWidget(preview_label)
         text_col.addLayout(meta_row)
 
-        # ── Right: buttons ────────────────────────────────────────────
-        btn_row = QHBoxLayout()
+        # ── Right: buttons container (strictly fixed size) ────────────
+        btn_container = QWidget()
+        btn_container.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        btn_container.setFixedSize(112, 26)
+
+        btn_row = QHBoxLayout(btn_container)
         btn_row.setSpacing(4)
         btn_row.setContentsMargins(0, 0, 0, 0)
+        btn_row.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+        self._pin_btn = QPushButton("📌")
+        self._pin_btn.setObjectName("pinBtn")
+        self._pin_btn.setFixedSize(28, 26)
+        self._pin_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._pin_btn.setToolTip("Pin/Unpin item")
+        self._pin_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._pin_btn.clicked.connect(self._on_pin_toggle)
 
         self._copy_btn = QPushButton("Copy")
         self._copy_btn.setObjectName("copyBtn")
@@ -146,12 +168,15 @@ class ClipboardItemWidget(QFrame):
         self._del_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._del_btn.clicked.connect(self._on_delete)
 
+        self._update_pin_visual()
+
+        btn_row.addWidget(self._pin_btn)
         btn_row.addWidget(self._copy_btn)
         btn_row.addWidget(self._del_btn)
 
         # ── Assemble ──────────────────────────────────────────────────
         outer.addLayout(text_col, stretch=1)
-        outer.addLayout(btn_row)
+        outer.addWidget(btn_container)
 
     # ------------------------------------------------------------------
     # Preview builder (pure function, no side effects)
@@ -197,6 +222,24 @@ class ClipboardItemWidget(QFrame):
         """Signal MainWindow to remove this card by ID."""
         self.delete_requested.emit(self._id)
 
+    def _on_pin_toggle(self):
+        """Toggle pinned status and notify window/service."""
+        self._pinned = not self._pinned
+        self._update_pin_visual()
+        self.pin_toggled.emit(self._id, self._pinned)
+
+    def _update_pin_visual(self):
+        """Sync button and card stylesheet properties with pinned state."""
+        self._pin_btn.setProperty("pinned", self._pinned)
+        self._pin_btn.style().unpolish(self._pin_btn)
+        self._pin_btn.style().polish(self._pin_btn)
+        self._pin_btn.update()
+
+        self.setProperty("pinned", self._pinned)
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self.update()
+
     def _flash_copy_btn(self):
         """Brief green flash on the Copy button."""
         self._copy_btn.setText("✓")
@@ -224,6 +267,16 @@ class ClipboardItemWidget(QFrame):
     def full_text(self) -> str:
         """The full original text stored in this card."""
         return self._full_text
+
+    @property
+    def pinned(self) -> bool:
+        """Whether this card is pinned."""
+        return self._pinned
+
+    @property
+    def timestamp(self) -> float:
+        """The timestamp of this card."""
+        return self._timestamp
 
     def matches(self, query: str) -> bool:
         """Case-insensitive search match."""

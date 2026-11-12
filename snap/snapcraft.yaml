@@ -1,0 +1,113 @@
+name: clipvault-teckscaler
+version: '1.0.0'
+summary: A lightweight, privacy-aware clipboard manager for Linux
+description: |
+  ClipVault is a lightweight clipboard manager for Linux desktop environments,
+  supporting both X11 and Wayland sessions.
+
+  Features:
+  - Three-tier monitoring (instant Qt signals, off-thread background worker, and polling)
+  - Automatic sensitive content detection and filtering for password managers (KeePassXC, Bitwarden, 1Password, KWallet)
+  - Virtualized QListView for constant O(1) memory usage
+  - Quick search filtering, item pinning, and single-click copy
+  - Single-instance IPC socket with desktop shortcut toggle support
+  - Persistent storage powered by SQLite with WAL mode
+
+base: core24
+grade: stable
+confinement: strict # Use 'strict' for security, or 'classic' if you need unrestricted host access
+license: MIT
+website: https://www.teckscaler.com
+contact: https://www.teckscaler.com
+source-code: https://github.com/rajatpateldm-web/ubuntu-clipboard-manager
+issues: https://github.com/rajatpateldm-web/ubuntu-clipboard-manager/issues
+
+layout:
+  /usr/share/X11/xkb:
+    bind: $SNAP/usr/share/X11/xkb
+
+apps:
+  clipvault-teckscaler:
+    command: bin/clipvault
+    desktop: usr/share/applications/clipvault.desktop
+    plugs:
+      - x11        # Required for X11 clipboard access
+      - wayland    # Required for Wayland clipboard access
+      - desktop    # Standard desktop integration
+      - desktop-legacy
+      - unity7
+      - opengl
+      - network-bind # Required for QLocalServer local IPC socket
+
+  toggle:
+    command: bin/clipvault-toggle
+    plugs:
+      - x11
+      - wayland
+      - desktop
+      - desktop-legacy
+      - unity7
+      - opengl
+      - network-bind
+
+parts:
+  clipvault-app:
+    plugin: dump
+    source: .
+    stage:
+      - main.py
+      - services
+      - ui
+      - -services/__pycache__
+      - -ui/__pycache__
+      - -*.pyc
+
+  clipvault-deps:
+    plugin: python
+    source: .
+    python-requirements:
+      - requirements.txt
+    stage-packages:
+      - wl-clipboard
+      - xclip
+      - xkb-data
+      - libgl1
+      - libegl1
+      - libwayland-egl1
+      - libxkbcommon0
+      - libxkbcommon-x11-0
+      - libxcb-util1
+      - libfontconfig1
+      - libx11-xcb1
+      - libxcb-cursor0
+      - libxcb-icccm4
+      - libxcb-image0
+      - libxcb-keysyms1
+      - libxcb-randr0
+      - libxcb-render-util0
+      - libxcb-shape0
+      - libxcb-sync1
+      - libxcb-xfixes0
+      - libxcb-xinerama0
+      - libxcb-xkb1
+      - libwayland-cursor0
+      - libwayland-client0
+    stage:
+      - -venv
+      - -tests
+      - -test_clipboard.sh
+      - -clipvault.db
+      - -clipvault.db-shm
+      - -clipvault.db-wal
+      - -snap
+      - -.git
+      - -.gitignore
+      - -main.py
+      - -services
+      - -ui
+      - -__pycache__
+      - -*.pyc
+
+  launchers:
+    plugin: dump
+    source: snap/local

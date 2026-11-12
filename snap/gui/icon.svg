@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </linearGradient>
+    <linearGradient id="boardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#1E293B"/>
+    </linearGradient>
+    <linearGradient id="paperGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F8FAFC"/>
+      <stop offset="100%" stop-color="#E2E8F0"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <!-- Background rounded squircle -->
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="url(#bgGrad)"/>
+
+  <!-- Outer Board -->
+  <rect x="96" y="90" width="320" height="360" rx="28" fill="url(#boardGrad)" stroke="#475569" stroke-width="4" filter="url(#shadow)"/>
+
+  <!-- Paper Layer -->
+  <rect x="126" y="140" width="260" height="280" rx="16" fill="url(#paperGrad)"/>
+
+  <!-- Clip on Top -->
+  <rect x="196" y="70" width="120" height="48" rx="14" fill="#64748B" stroke="#94A3B8" stroke-width="3"/>
+  <rect x="226" y="60" width="60" height="24" rx="8" fill="none" stroke="#CBD5E1" stroke-width="6"/>
+
+  <!-- Content lines on paper -->
+  <rect x="156" y="180" width="130" height="12" rx="6" fill="#94A3B8"/>
+  <rect x="156" y="210" width="180" height="12" rx="6" fill="#CBD5E1"/>
+  <rect x="156" y="240" width="150" height="12" rx="6" fill="#CBD5E1"/>
+  <rect x="156" y="270" width="100" height="12" rx="6" fill="#E2E8F0"/>
+
+  <!-- Vault Shield / Lock Emblem on bottom right -->
+  <g transform="translate(260, 250)" filter="url(#shadow)">
+    <!-- Shield Background -->
+    <path d="M 80 0 C 130 0, 160 20, 160 50 C 160 110, 100 150, 80 160 C 60 150, 0 110, 0 50 C 0 20, 30 0, 80 0 Z" fill="url(#accentGrad)"/>
+    <path d="M 80 6 C 126 6, 154 24, 154 50 C 154 105, 98 143, 80 153 C 62 143, 6 105, 6 50 C 6 24, 34 6, 80 6 Z" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-opacity="0.3"/>
+    
+    <!-- Lock Shackle -->
+    <path d="M 65 65 L 65 50 A 15 15 0 0 1 95 50 L 95 65" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round"/>
+    
+    <!-- Lock Body -->
+    <rect x="55" y="65" width="50" height="38" rx="8" fill="#FFFFFF"/>
+    
+    <!-- Keyhole -->
+    <circle cx="80" cy="80" r="5" fill="#1E293B"/>
+    <polygon points="77,82 83,82 84,92 76,92" fill="#1E293B"/>
+  </g>
+</svg>

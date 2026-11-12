@@ -1,38 +1,29 @@
 """
 ui/main_window.py
-------------------
-Performance-optimised main window for ClipVault.
-
-PERFORMANCE FIXES VS PREVIOUS VERSION
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-1. _on_new_clip no longer calls _filter_items() when search bar is empty.
-   This avoids iterating ALL items on every new clip (was O(n) per clip).
-
-2. Uses setUpdatesEnabled(False/True) around delete operations to
-   batch layout changes and prevent intermediate redraws.
-
-3. Connects to ClipboardService.item_trimmed to auto-remove cards
-   when history exceeds MAX_HISTORY (100 items).
-
-4. Scroll-to-top uses a single-shot timer with a captured reference
-   (no lambda closure per call, avoiding GC churn).
+Virtualized, high-performance main window for ClipVault.
+Uses QListView with custom ClipboardItemDelegate and ClipboardModel
+to achieve constant O(1) memory usage regardless of clipboard history size.
 """
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QSettings, QEvent
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListView,
     QMainWindow,
-    QScrollArea,
+    QPushButton,
     QVBoxLayout,
     QWidget,
-    QSizePolicy,
 )
 
 from services.clipboard_service import ClipboardService
-from ui.clipboard_item import ClipboardItemWidget
+from ui.clipboard_model import ClipboardModel, ClipboardProxyModel, FullTextRole, ItemIdRole
+from ui.clipboard_delegate import ClipboardItemDelegate
+from ui.styles import DARK_THEME, LIGHT_THEME
 
 
 class MainWindow(QMainWindow):
@@ -40,10 +31,10 @@ class MainWindow(QMainWindow):
     Primary window for ClipVault clipboard manager.
 
     Performance characteristics:
-    - Adding a new card: O(1) — single widget insert, no list iteration
-    - Search filtering: O(n) — only runs when search bar is non-empty
-    - Delete: O(n) find + O(1) remove — with batched layout updates
-    - Auto-trim: O(1) — removes last card directly
+    - Adding a new card: O(1) model insert
+    - Memory usage: O(1) widget allocations via virtualized QListView
+    - Search filtering: O(n) proxy model filter without destroying/rebuilding widgets
+    - Item rendering: O(visible) paint passes via custom item delegate
     """
 
     def __init__(self):
@@ -54,7 +45,9 @@ class MainWindow(QMainWindow):
         self.resize(500, 700)
         self.setObjectName("mainWindow")
 
-        self._items: list[ClipboardItemWidget] = []
+        # ── Theme Preferences ─────────────────────────────────────────
+        self._settings = QSettings("ClipVault", "App")
+        self._theme = self._settings.value("theme", "dark")
 
         # ── Build UI ───────────────────────────────────────────────────
         central = QWidget()
@@ -68,13 +61,20 @@ class MainWindow(QMainWindow):
         root.addWidget(self._build_header())
         root.addWidget(self._build_search())
         root.addWidget(self._build_section_label())
-        root.addWidget(self._build_scroll_area(), stretch=1)
+        root.addWidget(self._build_list_container(), stretch=1)
         root.addWidget(self._build_footer())
+
+        # Apply initial theme
+        self.set_theme(self._theme, persist=False)
 
         # ── Clipboard service ─────────────────────────────────────────
         self._service = ClipboardService(self)
         self._service.new_item.connect(self._on_new_clip)
         self._service.item_trimmed.connect(self._on_item_trimmed)
+
+        # Load initial history from database/service
+        self._load_initial_history()
+
         self._service.start()
 
         self._update_footer_status()
@@ -96,10 +96,17 @@ class MainWindow(QMainWindow):
         title = QLabel("ClipVault")
         title.setObjectName("appTitle")
 
+        self._theme_btn = QPushButton("☀️" if self._theme == "dark" else "🌙")
+        self._theme_btn.setObjectName("themeToggleBtn")
+        self._theme_btn.setToolTip("Switch to Light Mode" if self._theme == "dark" else "Switch to Dark Mode")
+        self._theme_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._theme_btn.clicked.connect(self._on_toggle_theme)
+
         layout.addWidget(icon)
         layout.addSpacing(2)
         layout.addWidget(title)
         layout.addStretch()
+        layout.addWidget(self._theme_btn)
         return bar
 
     def _build_search(self) -> QWidget:
@@ -112,6 +119,7 @@ class MainWindow(QMainWindow):
         self._search_bar.setPlaceholderText("🔍  Search clipboard history…")
         self._search_bar.setClearButtonEnabled(True)
         self._search_bar.textChanged.connect(self._filter_items)
+        self._search_bar.installEventFilter(self)
 
         layout.addWidget(self._search_bar)
         return container
@@ -127,29 +135,52 @@ class MainWindow(QMainWindow):
         layout.addStretch()
         return container
 
-    def _build_scroll_area(self) -> QScrollArea:
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+    def _build_list_container(self) -> QWidget:
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(12, 4, 12, 12)
+        layout.setSpacing(0)
 
-        inner = QWidget()
-        inner.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self._list_layout = QVBoxLayout(inner)
-        self._list_layout.setContentsMargins(12, 4, 12, 12)
-        self._list_layout.setSpacing(6)
-        self._list_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        # Virtualized QListView
+        self._list_view = QListView()
+        self._list_view.setObjectName("clipListView")
+        self._list_view.setUniformItemSizes(True)  # Key optimization for O(1) layout
+        self._list_view.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self._list_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._list_view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._list_view.setMouseTracking(True)
+        self._list_view.setFrameShape(QFrame.Shape.NoFrame)
+        self._list_view.installEventFilter(self)
 
+        # Setup model and proxy
+        self._model = ClipboardModel(self)
+        self._proxy_model = ClipboardProxyModel(self)
+        self._proxy_model.setSourceModel(self._model)
+        self._list_view.setModel(self._proxy_model)
+
+        # Setup custom item delegate
+        self._delegate = ClipboardItemDelegate(self)
+        self._delegate.set_theme(self._theme)
+        self._list_view.setItemDelegate(self._delegate)
+
+        # Delegate action signals
+        self._delegate.pin_requested.connect(self._on_pin_toggled)
+        self._delegate.copy_requested.connect(self._on_copy_item)
+        self._delegate.delete_requested.connect(self._on_delete_item)
+
+        # Keyboard / double-click activation
+        self._list_view.activated.connect(self._on_item_activated)
+
+        # Empty state label
         self._empty_label = QLabel("Copy something to see it here.")
         self._empty_label.setObjectName("emptyLabel")
         self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._empty_label.setMinimumHeight(100)
-        self._list_layout.addWidget(self._empty_label)
+        self._empty_label.setVisible(False)
 
-        scroll.setWidget(inner)
-        self._scroll_area = scroll
-        return scroll
+        layout.addWidget(self._empty_label)
+        layout.addWidget(self._list_view)
+        return container
 
     def _build_footer(self) -> QLabel:
         self._footer = QLabel("  ●  Starting…")
@@ -166,125 +197,167 @@ class MainWindow(QMainWindow):
             tool = self._service._clip_cmd[0]
             if tool == "wl-paste":
                 self._footer.setText("  ●  Active: wl-paste  (Tip: run 'sudo apt install xclip' to stop GNOME dock flicker)")
-                self._footer.setStyleSheet("color: #D97706;")  # Elegant amber color
+                self._footer.setStyleSheet("color: #D97706;")
             else:
                 self._footer.setText(f"  ●  Active: {tool}  (Smooth background monitoring)")
-                self._footer.setStyleSheet("color: #10B981;")  # Gorgeous success green
+                self._footer.setStyleSheet("color: #10B981;")
         else:
             self._footer.setText("  ●  Active: Qt Focus-Only Fallback")
             self._footer.setStyleSheet("color: #8B6F3A;")
 
     # ──────────────────────────────────────────────────────────────────
-    # Slots — optimised for minimal work
+    # Theme Controls
     # ──────────────────────────────────────────────────────────────────
 
-    def _on_new_clip(self, item_id: str, text: str):
-        """
-        Add a new card at the top.
-        O(1) — just inserts one widget. Does NOT iterate the full list
-        unless a search query is active.
-        """
-        self._empty_label.setVisible(False)
+    def _on_toggle_theme(self):
+        """Toggle between light and dark themes."""
+        new_theme = "light" if self._theme == "dark" else "dark"
+        self.set_theme(new_theme, persist=True)
 
-        card = ClipboardItemWidget(item_id, text)
-        card.delete_requested.connect(self._on_delete_item)
-        self._items.insert(0, card)
-        self._list_layout.insertWidget(1, card)
+    def set_theme(self, theme_name: str, persist: bool = True):
+        """Apply theme globally and update delegate and controls."""
+        self._theme = theme_name if theme_name in ("light", "dark") else "dark"
+        if persist:
+            self._settings.setValue("theme", self._theme)
 
-        # Only re-filter if the user has typed something in the search bar.
-        # When empty, the new card is already visible — no work needed.
-        query = self._search_bar.text().strip()
-        if query:
-            # Only check the NEW card — don't re-iterate all items
-            if not card.matches(query):
-                card.setVisible(False)
+        app = QApplication.instance()
+        if app:
+            app.setStyleSheet(LIGHT_THEME if self._theme == "light" else DARK_THEME)
 
-        # Scroll to top (use method ref instead of lambda to avoid GC churn)
-        QTimer.singleShot(50, self._scroll_to_top)
+        if hasattr(self, "_delegate"):
+            self._delegate.set_theme(self._theme)
 
-    def _scroll_to_top(self):
-        """Scroll the list to the very top."""
-        self._scroll_area.verticalScrollBar().setValue(0)
+        if hasattr(self, "_theme_btn"):
+            if self._theme == "light":
+                self._theme_btn.setText("🌙")
+                self._theme_btn.setToolTip("Switch to Dark Mode")
+            else:
+                self._theme_btn.setText("☀️")
+                self._theme_btn.setToolTip("Switch to Light Mode")
+
+        if hasattr(self, "_list_view") and self._list_view.viewport():
+            self._list_view.viewport().update()
+
+    # ──────────────────────────────────────────────────────────────────
+    # Event Filters & Keyboard Shortcuts
+    # ──────────────────────────────────────────────────────────────────
+
+    def eventFilter(self, watched, event):
+        """Handle keyboard navigation between search bar and list view."""
+        if hasattr(self, "_search_bar") and watched == self._search_bar and event.type() == QEvent.Type.KeyPress:
+            if hasattr(self, "_proxy_model") and hasattr(self, "_list_view"):
+                if event.key() == Qt.Key.Key_Down and self._proxy_model.rowCount() > 0:
+                    first_index = self._proxy_model.index(0, 0)
+                    self._list_view.setCurrentIndex(first_index)
+                    self._list_view.setFocus()
+                    return True
+        elif hasattr(self, "_list_view") and watched == self._list_view and event.type() == QEvent.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Delete and hasattr(self, "_proxy_model"):
+                current = self._list_view.currentIndex()
+                if current.isValid():
+                    item_id = self._proxy_model.data(current, ItemIdRole)
+                    if item_id:
+                        self._on_delete_item(item_id)
+                        return True
+        return super().eventFilter(watched, event)
+
+    def keyPressEvent(self, event):
+        """Dismiss window on Escape key."""
+        if event.key() == Qt.Key.Key_Escape:
+            self.hide()
+            return
+        super().keyPressEvent(event)
+
+    # ──────────────────────────────────────────────────────────────────
+    # Slots
+    # ──────────────────────────────────────────────────────────────────
+
+    def _on_new_clip(self, item_id: str, text: str, timestamp: float = None):
+        """Add new clipboard entry into model."""
+        import time
+        ts = timestamp or time.time()
+        self._model.add_item(item_id, text, ts, pinned=False)
+        self._update_empty_state()
+        self._scroll_to_top()
+
+    def _load_initial_history(self):
+        """Load history items from service into virtualized model."""
+        if self._service.history:
+            self._model.load_items(self._service.history)
+        self._update_empty_state()
+
+    def _on_pin_toggled(self, item_id: str, pinned: bool):
+        """Handle pin state toggle."""
+        self._service.set_item_pinned(item_id, pinned)
+        self._model.set_item_pinned(item_id, pinned)
+        self._update_empty_state()
 
     def _on_delete_item(self, item_id: str):
-        """
-        Remove a single card using its unique ID.
-        Uses setUpdatesEnabled to batch the layout change into one repaint.
-        """
-        card_to_remove = None
-        for card in self._items:
-            if card.id == item_id:
-                card_to_remove = card
-                break
-
-        if card_to_remove is None:
-            return
-
-        # Batch the layout update into a single repaint
-        scroll_inner = self._scroll_area.widget()
-        scroll_inner.setUpdatesEnabled(False)
-
-        self._items.remove(card_to_remove)
-        self._list_layout.removeWidget(card_to_remove)
-        card_to_remove.setParent(None)   # detach from layout immediately
-        card_to_remove.deleteLater()     # schedule destruction
-
-        scroll_inner.setUpdatesEnabled(True)
-
+        """Delete an item by unique ID."""
         self._service.remove_item(item_id)
+        self._model.remove_item(item_id)
+        self._update_empty_state()
 
-        if not self._items:
-            self._empty_label.setText("Copy something to see it here.")
-            self._empty_label.setVisible(True)
+    def _on_copy_item(self, item_id: str, text: str):
+        """Copy item text back to system clipboard."""
+        self._service.set_ignore_next(text)
+        QApplication.clipboard().setText(text)
+
+    def _on_item_activated(self, proxy_index):
+        """Handle Enter / Return key on selected item to copy to clipboard."""
+        if not proxy_index.isValid():
+            return
+        text = self._proxy_model.data(proxy_index, FullTextRole)
+        if text:
+            self._on_copy_item("", text)
 
     def _on_item_trimmed(self, item_id: str):
-        """
-        Called by ClipboardService when an old item is auto-removed
-        to enforce the MAX_HISTORY cap. Removes the card matching the trimmed ID.
-        """
-        for card in self._items:
-            if card.id == item_id:
-                self._items.remove(card)
-                self._list_layout.removeWidget(card)
-                card.setParent(None)
-                card.deleteLater()
-                break
+        """Handle auto-trimmed item from service."""
+        self._model.remove_item(item_id)
+        self._update_empty_state()
 
     def _filter_items(self, query: str):
-        """
-        Show/hide cards based on search query.
-        Only runs the full loop when query is non-empty.
-        When cleared, makes ALL items visible in one pass.
-        """
-        query = query.strip()
-        visible_count = 0
+        """Update proxy filter with search query."""
+        self._proxy_model.set_filter_query(query)
+        self._update_empty_state()
 
-        if not query:
-            # Fast path: make everything visible
-            for card in self._items:
-                card.setVisible(True)
-            visible_count = len(self._items)
-        else:
-            # Filter path: check each card
-            for card in self._items:
-                match = card.matches(query)
-                card.setVisible(match)
-                if match:
-                    visible_count += 1
+    def _update_empty_state(self):
+        """Update empty state label based on model row counts."""
+        total_items = self._model.rowCount()
+        visible_items = self._proxy_model.rowCount()
+        query = self._search_bar.text().strip()
 
-        # Update empty-state
-        if not self._items:
-            self._empty_label.setVisible(True)
+        if total_items == 0:
             self._empty_label.setText("Copy something to see it here.")
-        elif visible_count == 0:
             self._empty_label.setVisible(True)
+            self._list_view.setVisible(False)
+        elif visible_items == 0:
             self._empty_label.setText(f'No results for "{query}"')
+            self._empty_label.setVisible(True)
+            self._list_view.setVisible(False)
         else:
             self._empty_label.setVisible(False)
+            self._list_view.setVisible(True)
+
+    def _scroll_to_top(self):
+        """Scroll list view to top."""
+        self._list_view.scrollToTop()
 
     # ──────────────────────────────────────────────────────────────────
-    # Lifecycle
+    # Lifecycle & Window Controls
     # ──────────────────────────────────────────────────────────────────
+
+    def toggle_window(self):
+        """Toggle window visibility and keyboard focus in a wayland-friendly way."""
+        if not self.isVisible() or self.isMinimized() or not self.isActiveWindow():
+            self.showNormal()
+            self.show()
+            self.raise_()
+            self.activateWindow()
+            self._search_bar.setFocus()
+            self._scroll_to_top()
+        else:
+            self.hide()
 
     def closeEvent(self, event):
         """Clean shutdown."""
