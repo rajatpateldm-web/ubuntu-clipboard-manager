@@ -1,9 +1,9 @@
 app-id: com.teckscaler.ClipVault
 runtime: org.kde.Platform
-runtime-version: '6.8'
+runtime-version: '6.11'
 sdk: org.kde.Sdk
 base: com.riverbankcomputing.PyQt.BaseApp
-base-version: '6.8'
+base-version: '6.11'
 command: clipvault
 
 finish-args:
@@ -58,4 +58,4 @@ modules:
       - type: git
         url: https://github.com/rajatpateldm-web/ubuntu-clipboard-manager.git
         tag: v1.1.0
-        commit: f7d2312d61f7bd72bca86bd3e4a5cb4b9827f7ff
+        commit: 9b73f701dfd58da7d60656a7ab5e31b0abf3a275
