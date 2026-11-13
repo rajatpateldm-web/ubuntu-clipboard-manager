@@ -49,6 +49,14 @@
       <caption>Instant substring search filtering virtualized clipboard cards in ClipVault</caption>
       <image type="source" width="1530" height="920">https://teckscaler.com/wp-content/uploads/2026/11/clipvault_privacy_security_cropped.png</image>
     </screenshot>
+    <screenshot>
+      <caption>ClipVault v1.1.0 font customization dialog with live preview and system font presets</caption>
+      <image type="source" width="500" height="700">https://teckscaler.com/wp-content/uploads/2026/11/screenshot-6-font-options.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>ClipVault v1.1.0 color scheme dialog featuring 10 developer palettes</caption>
+      <image type="source" width="500" height="700">https://teckscaler.com/wp-content/uploads/2026/11/screenshot-7-color-options.png</image>
+    </screenshot>
   </screenshots>
 
   <provides>
