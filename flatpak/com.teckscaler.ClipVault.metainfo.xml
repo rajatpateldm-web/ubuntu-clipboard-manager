@@ -71,6 +71,18 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="1.1.0" date="2026-11-12">
+      <description>
+        <p>ClipVault v1.1.0 introduces extensive visual customization and Wayland window refinements:</p>
+        <ul>
+          <li>Font customization dialog with system presets, style controls, and live preview</li>
+          <li>10 developer-tailored color scheme palettes in both Dark and Light variants</li>
+          <li>Integrated X11 and XWayland background clipboard capture helper</li>
+          <li>Centered in-window modal dialog overlays to prevent Wayland window clipping</li>
+          <li>Hardened IPC socket command validation and SQLite WAL connection safeguards</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.0" date="2026-11-09">
       <description>
         <p>Initial release of ClipVault featuring three-tier monitoring, password manager filtering, and SQLite WAL storage.</p>

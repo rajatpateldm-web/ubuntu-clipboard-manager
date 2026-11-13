@@ -12,7 +12,6 @@ finish-args:
   - --socket=wayland
   - --device=dri
   - --talk-name=org.freedesktop.Notifications
-  - --filesystem=xdg-data/clipvault:create
 
 cleanup:
   - /include
@@ -58,4 +57,5 @@ modules:
     sources:
       - type: git
         url: https://github.com/rajatpateldm-web/ubuntu-clipboard-manager.git
-        branch: main
+        tag: v1.1.0
+        commit: f7d2312d61f7bd72bca86bd3e4a5cb4b9827f7ff
