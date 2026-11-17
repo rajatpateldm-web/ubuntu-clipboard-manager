@@ -224,4 +224,4 @@ class DatabaseService:
             return max(0, deleted_count)
         except (sqlite3.Error, OSError) as exc:
             log.error("Error deleting old unpinned items from database: %s", exc)
-            return 0
+            return -1

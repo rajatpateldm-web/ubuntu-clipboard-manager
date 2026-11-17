@@ -5,6 +5,7 @@ Uses QListView with custom ClipboardItemDelegate and ClipboardModel
 to achieve constant O(1) memory usage regardless of clipboard history size.
 """
 
+import logging
 import time
 
 from PyQt6.QtCore import Qt, QEvent, QEventLoop, QSettings
@@ -42,6 +43,7 @@ from ui.styles import (
 )
 
 APP_VERSION = "1.1.0"
+log = logging.getLogger("ClipVault.main_window")
 
 
 class _ModalBackdrop(QFrame):
@@ -63,11 +65,11 @@ class _ModalBackdrop(QFrame):
         if self.childAt(event.position().toPoint()) is None and self._dialog is not None:
             if self._dismiss_action == "ignore":
                 return
-            elif self._dismiss_action == "reject":
-                self._dialog.reject()
-                return
             elif self._dismiss_action == "accept":
                 self._dialog.accept()
+                return
+            else:
+                self._dialog.reject()
                 return
         super().mousePressEvent(event)
 
@@ -356,7 +358,7 @@ class MainWindow(QMainWindow):
         backdrop.layout().addWidget(dialog, 0, Qt.AlignmentFlag.AlignCenter)
         backdrop.setGeometry(self.rect())
 
-        loop = QEventLoop(self)
+        loop = QEventLoop()
         dialog.finished.connect(loop.quit)
 
         self._active_backdrop = backdrop
@@ -373,6 +375,7 @@ class MainWindow(QMainWindow):
             self._active_modal_dialog = None
             backdrop.hide()
             backdrop.deleteLater()
+            loop.deleteLater()
 
     def _on_open_color_options(self):
         """Open the Clipboard Color Options dialog."""
@@ -403,6 +406,9 @@ class MainWindow(QMainWindow):
         deleted = 0
         if hasattr(self, "_service"):
             deleted = self._service.delete_unpinned_older_than(cutoff)
+            if deleted < 0:
+                log.error("Failed to delete unpinned items from database service")
+                return deleted
         if hasattr(self, "_model"):
             self._model.remove_unpinned_older_than(cutoff)
         self._update_empty_state()

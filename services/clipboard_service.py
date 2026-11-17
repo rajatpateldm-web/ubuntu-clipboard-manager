@@ -641,6 +641,9 @@ class ClipboardService(QObject):
         in-memory history. Pinned items are never deleted.
         """
         deleted_count = self._db.delete_unpinned_older_than(cutoff_timestamp)
+        if deleted_count < 0:
+            return deleted_count
+
         if cutoff_timestamp is None:
             self.history = [item for item in self.history if item.get("pinned", False)]
         else:
@@ -649,5 +652,11 @@ class ClipboardService(QObject):
                 for item in self.history
                 if item.get("pinned", False) or item.get("timestamp", 0.0) >= cutoff_timestamp
             ]
+
+        new_last_text = self.history[0]["text"] if self.history else ""
+        self._last_text = new_last_text
+        if hasattr(self, "_worker"):
+            self._worker._last_text = new_last_text
+
         return deleted_count
 

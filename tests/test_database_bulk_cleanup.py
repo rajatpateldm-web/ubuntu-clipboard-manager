@@ -125,6 +125,46 @@ class TestDatabaseBulkCleanup(unittest.TestCase):
         db_ids = [item["id"] for item in self.db.load_history()]
         self.assertEqual(set(db_ids), {"p1", "u2"})
 
+    def test_clipboard_service_last_text_updated_after_cleanup(self):
+        """Cleanup must reset _last_text so copying the deleted string again is not dropped."""
+        service = ClipboardService(parent=None)
+        service._db = self.db
+        now = time.time()
+        service.history = [
+            {"id": "u1", "text": "Will Delete", "timestamp": now - 200, "pinned": False},
+        ]
+        self.db.save_item("u1", "Will Delete", now - 200, pinned=False)
+        service._last_text = "Will Delete"
+        service._worker._last_text = "Will Delete"
+
+        service.delete_unpinned_older_than(None)
+        self.assertEqual(service._last_text, "")
+        self.assertEqual(service._worker._last_text, "")
+
+        # Now re-copy the deleted text
+        service._process_text("Will Delete")
+        self.assertEqual(len(service.history), 1)
+        self.assertEqual(service.history[0]["text"], "Will Delete")
+
+    def test_database_service_error_handling_and_cache_preservation(self):
+        """Database failure returns -1 and prevents in-memory cache desynchronization."""
+        from unittest.mock import patch
+
+        service = ClipboardService(parent=None)
+        service._db = self.db
+        service.history = [
+            {"id": "u1", "text": "Keep If DB Fails", "timestamp": 1000.0, "pinned": False},
+        ]
+
+        with patch.object(self.db, "_connect", side_effect=OSError("Disk failure")):
+            res = self.db.delete_unpinned_older_than(None)
+            self.assertEqual(res, -1)
+
+            service_res = service.delete_unpinned_older_than(None)
+            self.assertEqual(service_res, -1)
+            # Memory cache must not have been purged
+            self.assertEqual(len(service.history), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
