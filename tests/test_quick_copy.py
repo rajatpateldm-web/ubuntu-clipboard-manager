@@ -116,3 +116,13 @@ def test_quick_copy_does_not_create_duplicate_history_entry(main_window):
     assert main_window._service._ignore_next is True
     assert main_window._service._ignore_text == "First Item"
     assert main_window._model.rowCount() == initial_count
+
+
+def test_delegate_shortcut_badge_computation(main_window):
+    """Delegate returns ^1 through ^9 for rows 0 through 8, and None for row >= 9."""
+    delegate = main_window._delegate
+    assert delegate._get_shortcut_badge_text(0) == "^1"
+    assert delegate._get_shortcut_badge_text(1) == "^2"
+    assert delegate._get_shortcut_badge_text(8) == "^9"
+    assert delegate._get_shortcut_badge_text(9) is None
+    assert delegate._get_shortcut_badge_text(-1) is None
