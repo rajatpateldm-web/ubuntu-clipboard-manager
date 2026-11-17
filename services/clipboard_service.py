@@ -631,3 +631,23 @@ class ClipboardService(QObject):
             else:
                 break
 
+    def count_unpinned_older_than(self, cutoff_timestamp: float | None = None) -> int:
+        """Count unpinned items older than cutoff timestamp (or all unpinned if cutoff is None)."""
+        return self._db.count_unpinned_older_than(cutoff_timestamp)
+
+    def delete_unpinned_older_than(self, cutoff_timestamp: float | None = None) -> int:
+        """
+        Delete unpinned items older than cutoff timestamp from database and synchronize
+        in-memory history. Pinned items are never deleted.
+        """
+        deleted_count = self._db.delete_unpinned_older_than(cutoff_timestamp)
+        if cutoff_timestamp is None:
+            self.history = [item for item in self.history if item.get("pinned", False)]
+        else:
+            self.history = [
+                item
+                for item in self.history
+                if item.get("pinned", False) or item.get("timestamp", 0.0) >= cutoff_timestamp
+            ]
+        return deleted_count
+

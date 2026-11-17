@@ -178,3 +178,50 @@ class DatabaseService:
                 conn.commit()
         except (sqlite3.Error, OSError) as exc:
             log.error("Error pruning old items from database: %s", exc)
+
+    def count_unpinned_older_than(self, cutoff_timestamp: float | None = None) -> int:
+        """
+        Count unpinned items older than a given timestamp cutoff.
+        If cutoff_timestamp is None, count all unpinned items.
+        Pinned items are excluded.
+        """
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                if cutoff_timestamp is None:
+                    cursor.execute("SELECT COUNT(*) FROM clipboard_history WHERE pinned = 0")
+                else:
+                    cursor.execute(
+                        "SELECT COUNT(*) FROM clipboard_history WHERE pinned = 0 AND timestamp < ?",
+                        (cutoff_timestamp,),
+                    )
+                row = cursor.fetchone()
+                return int(row[0]) if row else 0
+        except (sqlite3.Error, OSError) as exc:
+            log.error("Error counting unpinned items from database: %s", exc)
+            return 0
+
+    def delete_unpinned_older_than(self, cutoff_timestamp: float | None = None) -> int:
+        """
+        Delete unpinned items older than a given timestamp cutoff.
+        If cutoff_timestamp is None, delete all unpinned items.
+        Pinned items are never deleted.
+        Returns the number of deleted rows.
+        """
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                if cutoff_timestamp is None:
+                    cursor.execute("DELETE FROM clipboard_history WHERE pinned = 0")
+                else:
+                    cursor.execute(
+                        "DELETE FROM clipboard_history WHERE pinned = 0 AND timestamp < ?",
+                        (cutoff_timestamp,),
+                    )
+                deleted_count = cursor.rowcount if cursor.rowcount is not None else 0
+                conn.commit()
+            self._restrict_db_permissions()
+            return max(0, deleted_count)
+        except (sqlite3.Error, OSError) as exc:
+            log.error("Error deleting old unpinned items from database: %s", exc)
+            return 0
