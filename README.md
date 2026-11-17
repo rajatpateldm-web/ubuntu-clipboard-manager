@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/badge/Python-3.12+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.12+" />
   <img src="https://img.shields.io/badge/Qt-PyQt6-41CD52?style=flat-square&logo=qt&logoColor=white" alt="PyQt6" />
   <img src="https://img.shields.io/badge/Platform-Ubuntu%20%7C%20Wayland%20%7C%20X11-E95420?style=flat-square&logo=ubuntu&logoColor=white" alt="Ubuntu Wayland X11" />
-  <img src="https://img.shields.io/badge/Tests-68%20passed-success?style=flat-square" alt="68 Tests Passing" />
+  <img src="https://img.shields.io/badge/Tests-84%20passed-success?style=flat-square" alt="84 Tests Passing" />
   <img src="https://img.shields.io/badge/Storage-SQLite%20WAL%20(0600)-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite WAL Storage" />
 </p>
 
@@ -166,18 +166,22 @@ To toggle ClipVault from anywhere using a keyboard shortcut:
 1. Open **Settings > Keyboard > Keyboard Shortcuts > View and Customize Shortcuts > Custom Shortcuts**.
 2. Click **Add Shortcut**.
 3. Set **Name** to `Toggle ClipVault`.
-4. Set **Command** to `clipvault-teckscaler.toggle` (or `python3 /path/to/main.py --toggle` when running from source).
-5. Set **Shortcut** to `Super + V` (or `Ctrl + Alt + V`).
+4. Set **Command** to `clipvault-teckscaler.toggle` (or `/path/to/toggle.sh` when running from source).
+5. Set **Shortcut** to `Ctrl + Shift + V` (or `Super + V`).
 
-Pressing the shortcut summons ClipVault instantly. Pressing it again dismisses the window cleanly without modifying clipboard contents.
+Pressing the shortcut summons ClipVault instantly. Pressing it again dismisses the window cleanly without terminating background clipboard monitoring.
 
 ## Keyboard Controls
 
-- **Type anywhere inside search:** Instant case-insensitive substring filtering across captured clips.
-- **`Down` arrow:** Jump directly from the search bar to the first clipboard card.
-- **`Enter`:** Copy the selected entry to your active clipboard and dismiss the window.
-- **`Delete`:** Remove the selected card (and clear the active system clipboard if it matched).
-- **`Escape`:** Dismiss the ClipVault window without altering clipboard state.
+| Shortcut | Context | Action |
+|---|---|---|
+| `Ctrl + Shift + V` | Global | Summon or dismiss the ClipVault window |
+| `Ctrl + 1` .. `Ctrl + 9` | In-Window | Quick Copy corresponding visible item and hide window |
+| `Enter` | List View | Copy selected entry to clipboard and hide window |
+| `Down` arrow | Search Bar | Jump directly from the search bar to the first item card |
+| `Delete` | List View | Delete selected clip from history |
+| `Escape` | In-Window | Dismiss modal overlay or hide window without stopping monitoring |
+| Copy button | Item Card | Copy item to clipboard while keeping window open |
 
 ## Running Tests Locally
 
@@ -195,7 +199,7 @@ The test script runs in an offscreen Qt environment and verifies:
 - Developer color schemes, stylesheet generation, and live palette switching.
 - Persistent X11 and XWayland background clipboard helper process streaming and deduplication.
 - Bounded IPC command parsing and single-instance socket communication.
-- Virtualized `QListView` model and proxy filtering (`68` automated unit and integration tests plus full end-to-end GUI validation).
+- Virtualized `QListView` model and proxy filtering (`84` automated unit and integration tests plus full end-to-end GUI validation).
 
 ## Guides and Architecture Breakdown
 

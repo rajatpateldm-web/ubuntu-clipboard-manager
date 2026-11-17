@@ -97,6 +97,13 @@ class ClipboardItemDelegate(QStyledItemDelegate):
         return font
 
     @staticmethod
+    def _get_shortcut_badge_text(row: int) -> str | None:
+        """Return the keyboard shortcut indicator for the top 9 visible rows."""
+        if 0 <= row < 9:
+            return f"^{row + 1}"
+        return None
+
+    @staticmethod
     def _button_rects(option_rect: QRect) -> tuple[QRect, QRect, QRect, QRect]:
         """Compute card rect and right-aligned action button rectangles."""
         rect = option_rect.adjusted(6, 3, -6, -3)
@@ -164,16 +171,37 @@ class ClipboardItemDelegate(QStyledItemDelegate):
         time_rect = QRect(rect.x() + 12, meta_y, time_width, meta_height)
         painter.drawText(time_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, time_str)
 
+        current_meta_x = rect.x() + 12 + time_width
+
+        # Render shortcut pill badge for the first 9 visible rows (^1 through ^9)
+        shortcut_text = self._get_shortcut_badge_text(index.row())
+        if shortcut_text is not None:
+            shortcut_font = self._build_font(size_offset=-3, force_bold=True, respect_style=True)
+            painter.setFont(shortcut_font)
+            shortcut_metrics = painter.fontMetrics()
+            shortcut_width = max(24, shortcut_metrics.horizontalAdvance(shortcut_text) + 10)
+            max_shortcut_width = max(0, rect.right() - 118 - current_meta_x)
+            if max_shortcut_width >= 20:
+                actual_shortcut_width = min(shortcut_width, max_shortcut_width)
+                shortcut_rect = QRect(current_meta_x, meta_y, actual_shortcut_width, meta_height)
+                painter.setPen(QPen(QColor(p["badge_border"]), 1))
+                painter.setBrush(QBrush(QColor(p["badge_bg"])))
+                painter.drawRoundedRect(shortcut_rect, 4, 4)
+
+                painter.setPen(QPen(QColor(p["badge_text"])))
+                painter.drawText(shortcut_rect, Qt.AlignmentFlag.AlignCenter, shortcut_text)
+                current_meta_x += actual_shortcut_width + 6
+
         if line_count > 1:
             badge_font = self._build_font(size_offset=-3, respect_style=True)
             painter.setFont(badge_font)
             badge_metrics = painter.fontMetrics()
             badge_text = f"{line_count} lines"
             badge_width = max(46, badge_metrics.horizontalAdvance(badge_text) + 12)
-            max_badge_width = max(0, rect.right() - 118 - (rect.x() + 12 + time_width))
+            max_badge_width = max(0, rect.right() - 118 - current_meta_x)
             if max_badge_width >= 36:
                 badge_rect = QRect(
-                    rect.x() + 12 + time_width,
+                    current_meta_x,
                     meta_y,
                     min(badge_width, max_badge_width),
                     meta_height,
