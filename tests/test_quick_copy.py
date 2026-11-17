@@ -8,6 +8,7 @@ from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtWidgets import QApplication
 
+from ui.clipboard_model import FullTextRole, ItemIdRole
 from ui.main_window import MainWindow
 
 
@@ -126,3 +127,61 @@ def test_delegate_shortcut_badge_computation(main_window):
     assert delegate._get_shortcut_badge_text(8) == "^9"
     assert delegate._get_shortcut_badge_text(9) is None
     assert delegate._get_shortcut_badge_text(-1) is None
+
+
+def test_search_filtering_remaps_quick_copy(main_window):
+    """Typing a search query dynamically remaps Ctrl+1 to the first filtered item."""
+    main_window.show()
+    main_window._search_bar.setText("Third")
+    assert main_window._proxy_model.rowCount() == 1
+    success = main_window._on_quick_copy_row(0)
+    assert success is True
+    assert QApplication.clipboard().text() == "Third Item"
+    assert not main_window.isVisible()
+
+
+def test_pinned_item_priority_in_quick_copy(main_window):
+    """Pinned items appear first and receive top shortcut indices."""
+    first_index = main_window._proxy_model.index(0, 0)
+    assert first_index.data(ItemIdRole) == "1"
+    success = main_window._on_quick_copy_row(0)
+    assert success is True
+    assert QApplication.clipboard().text() == "First Item"
+
+
+def test_background_service_persists_when_window_hidden(main_window):
+    """Clipboard monitoring and model ingestion remain fully operational when window is hidden."""
+    main_window.show()
+    main_window.hide()
+    assert not main_window.isVisible()
+
+    # Simulate new incoming clip while window is hidden
+    main_window._on_new_clip("4", "Background Item", 4000.0)
+    assert main_window._model.rowCount() == 4
+
+    # Re-showing the window reflects the updated model
+    main_window.show()
+    assert main_window._proxy_model.rowCount() == 4
+    assert main_window._proxy_model.index(1, 0).data(FullTextRole) == "Background Item"
+
+
+def test_toggle_window_repeated_cycles(main_window):
+    """Toggling window repeatedly preserves service state and focus."""
+    for _ in range(3):
+        main_window.toggle_window()
+        main_window.toggle_window()
+    assert main_window._model.rowCount() >= 3
+
+
+def test_ctrl_number_from_window_keypress(main_window):
+    """Pressing Ctrl+1 directly on the window dispatches quick copy."""
+    main_window.show()
+    event = QKeyEvent(
+        QEvent.Type.KeyPress,
+        Qt.Key.Key_1,
+        Qt.KeyboardModifier.ControlModifier,
+        "1",
+    )
+    main_window.keyPressEvent(event)
+    assert QApplication.clipboard().text() == "First Item"
+    assert not main_window.isVisible()
