@@ -195,3 +195,18 @@ def test_quick_copy_ignored_when_modal_dialog_is_active(main_window):
     success = main_window._on_quick_copy_row(0)
     assert success is False
     assert main_window.isVisible()
+
+
+def test_ctrl_number_with_keypad_modifier(main_window):
+    """Pressing Ctrl+1 with KeypadModifier also triggers quick copy."""
+    main_window.show()
+    event = QKeyEvent(
+        QEvent.Type.KeyPress,
+        Qt.Key.Key_1,
+        Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.KeypadModifier,
+        "1",
+    )
+    handled = main_window.eventFilter(main_window._search_bar, event)
+    assert handled is True
+    assert QApplication.clipboard().text() == "First Item"
+    assert not main_window.isVisible()

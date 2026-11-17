@@ -424,7 +424,8 @@ class MainWindow(QMainWindow):
         """Handle keyboard navigation between search bar and list view, and quick copy."""
         if event.type() == QEvent.Type.KeyPress:
             # Handle Ctrl+1..9 quick copy shortcuts from any tracked widget
-            if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            mods = event.modifiers() & ~Qt.KeyboardModifier.KeypadModifier
+            if mods == Qt.KeyboardModifier.ControlModifier:
                 if Qt.Key.Key_1 <= event.key() <= Qt.Key.Key_9:
                     target_row = int(event.key()) - int(Qt.Key.Key_1)
                     self._on_quick_copy_row(target_row)
@@ -449,11 +450,12 @@ class MainWindow(QMainWindow):
 
     def keyPressEvent(self, event):
         """Handle global window keys: Escape to close, Ctrl+1..9 to quick copy."""
-        if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+        mods = event.modifiers() & ~Qt.KeyboardModifier.KeypadModifier
+        if mods == Qt.KeyboardModifier.ControlModifier:
             if Qt.Key.Key_1 <= event.key() <= Qt.Key.Key_9:
                 target_row = int(event.key()) - int(Qt.Key.Key_1)
-                if self._on_quick_copy_row(target_row):
-                    return
+                self._on_quick_copy_row(target_row)
+                return
 
         if event.key() == Qt.Key.Key_Escape:
             if self._active_modal_dialog is not None:
