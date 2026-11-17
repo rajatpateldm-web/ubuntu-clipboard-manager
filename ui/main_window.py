@@ -505,6 +505,8 @@ class MainWindow(QMainWindow):
 
     def _on_quick_copy_row(self, row_idx: int) -> bool:
         """Copy the item at visible row_idx to system clipboard and dismiss window."""
+        if getattr(self, "_active_modal_dialog", None) is not None:
+            return False
         if not hasattr(self, "_proxy_model") or row_idx < 0 or row_idx >= self._proxy_model.rowCount():
             return False
         index = self._proxy_model.index(row_idx, 0)
@@ -513,17 +515,21 @@ class MainWindow(QMainWindow):
         text = self._proxy_model.data(index, FullTextRole)
         if not text:
             return False
-        self._on_copy_item("", text)
+        item_id = str(self._proxy_model.data(index, ItemIdRole) or "")
+        self._on_copy_item(item_id, text)
         self.hide()
         return True
 
     def _on_item_activated(self, proxy_index):
         """Handle Enter / Return key on selected item to copy to clipboard and dismiss window."""
+        if getattr(self, "_active_modal_dialog", None) is not None:
+            return
         if not proxy_index.isValid():
             return
         text = self._proxy_model.data(proxy_index, FullTextRole)
         if text:
-            self._on_copy_item("", text)
+            item_id = str(self._proxy_model.data(proxy_index, ItemIdRole) or "")
+            self._on_copy_item(item_id, text)
             self.hide()
 
     def _on_item_trimmed(self, item_id: str):

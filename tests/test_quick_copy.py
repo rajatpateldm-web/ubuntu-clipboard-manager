@@ -185,3 +185,13 @@ def test_ctrl_number_from_window_keypress(main_window):
     main_window.keyPressEvent(event)
     assert QApplication.clipboard().text() == "First Item"
     assert not main_window.isVisible()
+
+
+def test_quick_copy_ignored_when_modal_dialog_is_active(main_window):
+    """Quick copy does not trigger or dismiss window when an in-window modal dialog is active."""
+    from unittest.mock import MagicMock
+    main_window.show()
+    main_window._active_modal_dialog = MagicMock()
+    success = main_window._on_quick_copy_row(0)
+    assert success is False
+    assert main_window.isVisible()
