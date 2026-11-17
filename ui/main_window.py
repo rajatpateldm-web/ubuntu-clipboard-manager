@@ -11,6 +11,7 @@ from PyQt6.QtCore import Qt, QEvent, QEventLoop, QSettings
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -23,6 +24,7 @@ from PyQt6.QtWidgets import (
 )
 
 from services.clipboard_service import ClipboardService
+from ui.cleanup_dialog import CleanupDialog
 from ui.clipboard_model import ClipboardModel, ClipboardProxyModel, FullTextRole, ItemIdRole
 from ui.clipboard_delegate import ClipboardItemDelegate
 from ui.color_dialog import ColorOptionsDialog
@@ -159,6 +161,12 @@ class MainWindow(QMainWindow):
         self._color_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._color_btn.clicked.connect(self._on_open_color_options)
 
+        self._cleanup_btn = QPushButton("🧹")
+        self._cleanup_btn.setObjectName("cleanupHistoryBtn")
+        self._cleanup_btn.setToolTip("Clear Old History")
+        self._cleanup_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._cleanup_btn.clicked.connect(self._on_open_cleanup)
+
         self._theme_btn = QPushButton("☀️" if self._theme == "dark" else "🌙")
         self._theme_btn.setObjectName("themeToggleBtn")
         self._theme_btn.setToolTip("Switch to Light Mode" if self._theme == "dark" else "Switch to Dark Mode")
@@ -172,6 +180,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._font_btn)
         layout.addSpacing(6)
         layout.addWidget(self._color_btn)
+        layout.addSpacing(6)
+        layout.addWidget(self._cleanup_btn)
         layout.addSpacing(6)
         layout.addWidget(self._theme_btn)
         return bar
@@ -361,6 +371,36 @@ class MainWindow(QMainWindow):
         )
         dialog.color_scheme_changed.connect(lambda scheme: self.set_color_scheme(scheme, persist=True))
         self._run_modal_overlay(dialog)
+
+    def _count_unpinned_items(self, cutoff: float | None) -> int:
+        """Count unpinned items older than cutoff (or all unpinned if cutoff is None)."""
+        if hasattr(self, "_model"):
+            return self._model.count_unpinned_older_than(cutoff)
+        return 0
+
+    def _execute_cleanup(self, cutoff: float | None) -> int:
+        """
+        Execute bulk cleanup of unpinned items older than cutoff from service and model,
+        and update UI view states. Pinned items are never deleted.
+        """
+        deleted = 0
+        if hasattr(self, "_service"):
+            deleted = self._service.delete_unpinned_older_than(cutoff)
+        if hasattr(self, "_model"):
+            self._model.remove_unpinned_older_than(cutoff)
+        self._update_empty_state()
+        return deleted
+
+    def _on_open_cleanup(self):
+        """Open the Bulk History Cleanup dialog as a centered modal overlay."""
+        dialog = CleanupDialog(
+            count_callback=self._count_unpinned_items,
+            parent=self,
+        )
+        result = self._run_modal_overlay(dialog)
+        if result == QDialog.DialogCode.Accepted:
+            cutoff = dialog.selected_cutoff()
+            self._execute_cleanup(cutoff)
 
     def set_color_scheme(self, color_scheme: str, persist: bool = True):
         """Apply clipboard color scheme globally and persist preference."""
