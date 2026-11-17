@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/badge/Python-3.12+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.12+" />
   <img src="https://img.shields.io/badge/Qt-PyQt6-41CD52?style=flat-square&logo=qt&logoColor=white" alt="PyQt6" />
   <img src="https://img.shields.io/badge/Platform-Ubuntu%20%7C%20Wayland%20%7C%20X11-E95420?style=flat-square&logo=ubuntu&logoColor=white" alt="Ubuntu Wayland X11" />
-  <img src="https://img.shields.io/badge/Tests-85%20passed-success?style=flat-square" alt="85 Tests Passing" />
+  <img src="https://img.shields.io/badge/Tests-108%20passed-success?style=flat-square" alt="108 Tests Passing" />
   <img src="https://img.shields.io/badge/Storage-SQLite%20WAL%20(0600)-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite WAL Storage" />
 </p>
 
@@ -33,12 +33,14 @@ ClipVault tracks your text clipboard history on Ubuntu, GNOME Wayland, and X11 d
 
 The v1.1.0 release delivers comprehensive personalization, native background capture, and security hardening:
 
+- **Bulk History Cleanup Tool:** Purge unpinned history entries using four standard presets (Older than 24 Hours, 7 Days, 30 Days, or All Unpinned) with a safety confirmation modal. Pinned clips are permanently preserved across every threshold. Built with a safe default Cancel action, backdrop scrim click ignore protection, and live count feedback.
+- **Quick Copy Keyboard Shortcuts:** In-window `Ctrl+1` through `Ctrl+9` and `Enter` shortcuts instantly copy the selected visible item to the system clipboard and dismiss the window, accompanied by visual shortcut badges (`^1` through `^9`) on item cards.
 - **Typography and Font Customization:** Choose from font family presets (`System Default`, `Ubuntu`, `Sans Serif`, `Monospace`, `Serif`) or installed system fonts via `QFontDatabase`. Adjust font styles (`Regular`, `Bold`, `Italic`, `Bold Italic`) and tune font sizes from `10 px` to `22 px` with real-time preview and dynamic card row scaling.
 - **Ten Curated Developer Color Schemes:** Personalize your clipboard manager with 10 themes (`Classic`, `Cyan`, `One Dark`, `Dracula`, `Nord`, `Tokyo Night`, `Monokai`, `Gruvbox`, `Solarized`, `Catppuccin`). Every scheme features tailored Dark and Light mode variants (20 colorway combinations).
 - **Centered In-Window Modal Overlays:** Settings dialogs are integrated directly as modal in-window overlays inside the main interface. This keeps dialogs vertically centered, compact, and free from multi-window compositor clipping under GNOME Wayland.
 - **Persistent X11 and XWayland Background Helper:** Native clipboard helper (`services/x11_clipboard_helper.py`) captures copy events from external applications even when ClipVault is unfocused and command-line utilities (`xclip`, `xsel`, `wl-paste`) are not installed.
 - **Security and Storage Hardening:** Enforced strict `0o600` permissions on SQLite `.db`, `-wal`, and `-shm` files. Added bounded 64-byte IPC command parsing with exact matching, extended copy-back ignore windows to `1200 ms`, and bundled Adwaita and Hicolor icon themes in Snapcraft for crisp Wayland rendering.
-- **Expanded Test Suite and Developer Config:** 68 automated unit and integration tests covering font options, color themes, IPC bounds, X11 helper streaming, and database permissions, accompanied by `CONTRIBUTING.md` and `pyproject.toml`.
+- **Expanded Test Suite and Developer Config:** 108 automated unit and integration tests covering bulk cleanup, quick copy shortcuts, font options, color themes, IPC bounds, X11 helper streaming, and database permissions, accompanied by `CONTRIBUTING.md` and `pyproject.toml`.
 
 ## Version 1.1.0 Screenshots and Demos
 
@@ -181,6 +183,7 @@ Pressing the shortcut summons ClipVault instantly. Pressing it again dismisses t
 | `Down` arrow | Search Bar | Jump directly from the search bar to the first item card |
 | `Delete` | List View | Delete selected clip from history |
 | `Escape` | In-Window | Dismiss modal overlay or hide window without stopping monitoring |
+| `🧹` button | Header Bar | Open Bulk History Cleanup modal overlay |
 | Copy button | Item Card | Copy item to clipboard while keeping window open |
 
 ## Running Tests Locally
@@ -195,11 +198,13 @@ The test script runs in an offscreen Qt environment and verifies:
 
 - SQLite WAL persistence, automatic 100-item pruning, and `0o600` owner-only file permissions.
 - Pre-read MIME password filtering and negative-flag handling.
+- Bulk history cleanup age-based deletion and preview counting while permanently preserving pinned items.
+- In-window Quick Copy shortcuts (`Ctrl+1` through `Ctrl+9` and `Enter`) with visual card badges.
 - Font customization helpers, family sanitization, style parsing, and dynamic delegate scaling.
 - Developer color schemes, stylesheet generation, and live palette switching.
 - Persistent X11 and XWayland background clipboard helper process streaming and deduplication.
 - Bounded IPC command parsing and single-instance socket communication.
-- Virtualized `QListView` model and proxy filtering (`85` automated unit and integration tests plus full end-to-end GUI validation).
+- Virtualized `QListView` model and proxy filtering (`108` automated unit and integration tests plus full end-to-end GUI validation).
 
 ## Guides and Architecture Breakdown
 

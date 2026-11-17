@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- Bulk history cleanup tool (`ui/cleanup_dialog.py`) allowing users to delete unpinned clipboard entries older than 24 hours, 7 days, 30 days, or all unpinned entries, with a safety confirmation modal and permanent protection for pinned items.
+- In-window Quick Copy shortcuts (`Ctrl+1` through `Ctrl+9` and `Enter`) to instantly copy visible clips and dismiss the window, with visible shortcut badges (`^1` through `^9`) on item cards.
+- Database service age-based counting and deletion methods (`count_unpinned_older_than` and `delete_unpinned_older_than`).
+- Configurable modal backdrop dismissal (`dismiss_on_scrim_click`) in `MainWindow._run_modal_overlay` to ignore backdrop clicks for destructive dialogs while preserving live preview dismissal for settings dialogs.
+- Automated unit and integration tests across database bulk cleanup, model pruning, cleanup dialog interaction, and quick copy shortcuts (`tests/test_database_bulk_cleanup.py`, `tests/test_clipboard_model_cleanup.py`, `tests/test_cleanup_dialog.py`, `tests/test_main_window_cleanup.py`, `tests/test_quick_copy.py`).
+
+### Changed
+
+- Updated bottom footer in `MainWindow` to display application version centered without monitor status text.
+- Expanded automated test suite from 68 to 108 unit and integration tests.
+
 ## [1.1.0] - 2026-11-12
 
 ### Added

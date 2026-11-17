@@ -81,7 +81,7 @@ ClipVault avoids allocating individual `QWidget` objects for every clipboard ent
 *   **Model (`ui/clipboard_model.py`):** `ClipboardModel` inherits `QAbstractListModel`. It maintains an in-memory collection of dictionary items exposing custom data roles: `ItemIdRole`, `FullTextRole`, `TimestampRole`, `PinnedRole`, `PreviewTextRole`, and `LineCountRole`.
 *   **Proxy filtering (`ui/clipboard_model.py`):** `ClipboardProxyModel` inherits `QSortFilterProxyModel`. It handles case-insensitive substring searching without reallocating item rows, sorting pinned cards to the top, followed by reverse chronological order.
 *   **Delegate rendering (`ui/clipboard_delegate.py`):** `ClipboardItemDelegate` inherits `QStyledItemDelegate`. It executes direct `QPainter` drawing passes for visible cards only, dynamically applying theme palettes (`dark` and `light`), selected accent color schemes, and user typography settings to keep memory consumption constant regardless of history size.
-*   **Main window (`ui/main_window.py`):** Manages window layout, search bar input, list viewport, status bar counters, theme toggle, color scheme picker (`ui/color_dialog.py`), font style and size picker (`ui/font_dialog.py`) persisted via `QSettings`, and keyboard navigation (Down Arrow focus shift, Delete key item purging, and Escape window dismissal).
+*   **Main window (`ui/main_window.py`):** Manages window layout, search bar input, list viewport, status bar counters, theme toggle, color scheme picker (`ui/color_dialog.py`), font style and size picker (`ui/font_dialog.py`), bulk history cleanup (`ui/cleanup_dialog.py`) persisted via `QSettings`, and keyboard navigation (Down Arrow focus shift, Quick Copy `Ctrl+1..9` / `Enter`, Delete key item purging, and Escape window dismissal).
 *   **Styling engine (`ui/styles.py`):** Defines `DARK_THEME`, `LIGHT_THEME`, `COLOR_SCHEMES`, font sanitization/clamping helpers, and `build_delegate_palette` providing high-contrast background, border, text, accent, and button states across light, dark, classic, cyan, and IDE-inspired color schemes.
 *   **Wayland background X11/XWayland helper (`services/x11_clipboard_helper.py`):** Subprocess worker running under `QT_QPA_PLATFORM=xcb` so X11/XWayland clipboard events from external windows are captured on Wayland sessions even without external CLI utilities (`xclip`, `xsel`) or main window focus.
 
@@ -90,7 +90,7 @@ ClipVault avoids allocating individual `QWidget` objects for every clipboard ent
 *   **Write-Ahead Logging (WAL):** Configured with `PRAGMA journal_mode=WAL;` and `PRAGMA synchronous=NORMAL;` to permit concurrent reader queries alongside background writer commits.
 *   **Snap container awareness:** Detects the `$SNAP_USER_DATA` environment variable to ensure storage complies with Ubuntu strict confinement paths.
 *   **Automatic schema migrations:** Verifies column schemas using `PRAGMA table_info` and applies schema extensions (such as adding the `pinned` column) dynamically.
-*   **History cap:** Automatically prunes unpinned entries beyond the 100-item history limit while keeping pinned items permanently.
+*   **History cap & bulk cleanup:** Automatically prunes unpinned entries beyond the 100-item history limit while keeping pinned items permanently. Provides age-based threshold deletion (`count_unpinned_older_than`, `delete_unpinned_older_than`) with permanent immunity for pinned clips.
 
 ## 3. Data Flow and State Lifecycle
 
@@ -185,6 +185,7 @@ ubuntu-clipboard-manager/
 │   └── x11_clipboard_helper.py     # Qt XCB helper subprocess for Wayland background capture
 ├── ui/                             # Virtualized Qt presentation layer
 │   ├── __init__.py
+│   ├── cleanup_dialog.py           # Bulk history cleanup threshold and confirmation dialog
 │   ├── clipboard_delegate.py       # Custom item painter and event handler
 │   ├── clipboard_item.py           # Legacy widget fallback
 │   ├── clipboard_model.py          # Virtualized list model and proxy filter
@@ -194,9 +195,14 @@ ubuntu-clipboard-manager/
 │   └── styles.py                   # Global theme, color scheme, and font stylesheet builder
 ├── tests/                          # Automated test suites
 │   ├── __init__.py
+│   ├── test_cleanup_dialog.py      # Cleanup modal dialog preset and safety tests
+│   ├── test_clipboard_model_cleanup.py # Model unpinned pruning and proxy tests
 │   ├── test_color_options.py       # Accent color scheme and persistence tests
+│   ├── test_database_bulk_cleanup.py # Database bulk deletion, counting, and sync tests
 │   ├── test_database_service.py    # Database schema, WAL, and migration tests
 │   ├── test_font_options.py        # Font style, size, and stylesheet sanitization tests
+│   ├── test_main_window_cleanup.py # MainWindow cleanup integration and overlay tests
+│   ├── test_quick_copy.py          # Quick copy keyboard shortcuts and badge tests
 │   ├── test_security_and_ipc.py    # Permissions, bounds checking, and IPC validation tests
 │   ├── test_sensitive_detector.py  # Password manager hint unit tests
 │   ├── test_sensitive_clipboard_service.py # Service-level sensitive filtering tests
