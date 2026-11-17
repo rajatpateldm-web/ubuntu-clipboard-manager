@@ -139,6 +139,38 @@ class ClipboardModel(QAbstractListModel):
                 return item
         return None
 
+    def count_unpinned_older_than(self, cutoff_timestamp: float | None = None) -> int:
+        """Count unpinned items older than cutoff timestamp (or all unpinned if cutoff is None)."""
+        count = 0
+        for item in self._items:
+            if not item.get("pinned", False):
+                if cutoff_timestamp is None or item.get("timestamp", 0.0) < cutoff_timestamp:
+                    count += 1
+        return count
+
+    def remove_unpinned_older_than(self, cutoff_timestamp: float | None = None) -> int:
+        """
+        Remove unpinned items older than cutoff timestamp from the model.
+        Pinned items are permanently protected. Returns number of removed items.
+        """
+        remaining = []
+        removed_count = 0
+        for item in self._items:
+            if item.get("pinned", False):
+                remaining.append(item)
+            elif cutoff_timestamp is not None and item.get("timestamp", 0.0) >= cutoff_timestamp:
+                remaining.append(item)
+            else:
+                removed_count += 1
+
+        if removed_count > 0:
+            self.beginResetModel()
+            self._items = remaining
+            self._sort_items()
+            self.endResetModel()
+
+        return removed_count
+
     def _sort_items(self):
         """Sort items: pinned items first (newest to oldest), then unpinned (newest to oldest)."""
         self._items.sort(
