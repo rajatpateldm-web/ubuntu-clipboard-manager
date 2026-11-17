@@ -1502,7 +1502,7 @@ QLabel#appTitle {{
     letter-spacing: 1px;
 }}
 
-QPushButton#themeToggleBtn, QPushButton#fontSettingsBtn, QPushButton#colorSchemeBtn {{
+QPushButton#themeToggleBtn, QPushButton#fontSettingsBtn, QPushButton#colorSchemeBtn, QPushButton#cleanupHistoryBtn {{
     background-color: transparent;
     border: 1px solid {c["btn_border"]};
     border-radius: 6px;
@@ -1513,7 +1513,7 @@ QPushButton#themeToggleBtn, QPushButton#fontSettingsBtn, QPushButton#colorScheme
     color: {c["btn_fg"]};
 }}
 
-QPushButton#themeToggleBtn:hover, QPushButton#fontSettingsBtn:hover, QPushButton#colorSchemeBtn:hover {{
+QPushButton#themeToggleBtn:hover, QPushButton#fontSettingsBtn:hover, QPushButton#colorSchemeBtn:hover, QPushButton#cleanupHistoryBtn:hover {{
     background-color: {c["btn_hover_bg"]};
     border: 1px solid {c["btn_hover_border"]};
     color: {c["btn_hover_fg"]};
@@ -1524,11 +1524,11 @@ QFrame#modalBackdrop {{
     background-color: rgba(0, 0, 0, 145);
 }}
 
-QDialog#fontOptionsDialog, QDialog#colorOptionsDialog {{
+QDialog#fontOptionsDialog, QDialog#colorOptionsDialog, QDialog#cleanupDialog {{
     background-color: {c["dialog_bg"]};
 }}
 
-QDialog#fontOptionsDialog[modalOverlay="true"], QDialog#colorOptionsDialog[modalOverlay="true"] {{
+QDialog#fontOptionsDialog[modalOverlay="true"], QDialog#colorOptionsDialog[modalOverlay="true"], QDialog#cleanupDialog[modalOverlay="true"] {{
     border: 1px solid {c["btn_border"]};
     border-radius: 12px;
 }}
@@ -1640,6 +1640,51 @@ QPushButton#dialogPrimaryBtn {{
 
 QPushButton#dialogPrimaryBtn:hover {{
     background-color: {c["primary_hover_bg"]};
+}}
+
+QFrame#cleanupWarningCard {{
+    background-color: {c["preview_bg"]};
+    border: 1px solid {c["preview_border"]};
+    border-radius: 8px;
+}}
+
+QLabel#cleanupWarningText {{
+    color: {c["muted_fg"]};
+    font-size: 12px;
+}}
+
+QRadioButton#cleanupRadioOption {{
+    color: {c["text"]};
+    font-size: 13px;
+    padding: 2px 0px;
+    spacing: 8px;
+}}
+
+QLabel#cleanupImpactLabel {{
+    color: {c["text"]};
+    font-size: 13px;
+    font-weight: bold;
+    padding: 4px 0px;
+}}
+
+QPushButton#cleanupDeleteBtn {{
+    background-color: #E53935;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 16px;
+    font-size: 13px;
+    font-weight: bold;
+    font-style: normal;
+    color: #FFFFFF;
+}}
+
+QPushButton#cleanupDeleteBtn:hover {{
+    background-color: #D32F2F;
+}}
+
+QPushButton#cleanupDeleteBtn:disabled {{
+    background-color: rgba(229, 57, 53, 60);
+    color: rgba(255, 255, 255, 120);
 }}
 """
 
