@@ -39,6 +39,8 @@ from ui.styles import (
     sanitize_font_family,
 )
 
+APP_VERSION = "1.1.0"
+
 
 class _ModalBackdrop(QFrame):
     """Dimmed in-window overlay container that centers modal dialogs over MainWindow."""
@@ -248,30 +250,23 @@ class MainWindow(QMainWindow):
         return container
 
     def _build_footer(self) -> QLabel:
-        self._footer = QLabel("  ●  Starting…")
+        self._footer = QLabel(f"ClipVault v{APP_VERSION}")
         self._footer.setObjectName("footerLabel")
-        self._footer.setFixedHeight(28)
-        self._footer.setAlignment(
-            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
-        )
+        self._footer.setFixedHeight(26)
+        self._footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
         return self._footer
 
     def _update_footer_status(self):
-        """Show active clipboard detection method in the footer."""
-        if self._service._clip_cmd:
-            tool = self._service._clip_cmd[0]
-            if tool == "wl-paste":
-                self._footer.setText("  ●  Active: wl-paste  (Tip: run 'sudo apt install xclip' to stop GNOME dock flicker)")
-                self._footer.setStyleSheet("color: #D97706;")
+        """Update footer version display and optional backend tooltip."""
+        if hasattr(self, "_footer"):
+            self._footer.setText(f"ClipVault v{APP_VERSION}")
+            if self._service._clip_cmd:
+                tool = self._service._clip_cmd[0]
+                self._footer.setToolTip(f"Clipboard Backend: {tool}")
+            elif getattr(self._service, "_use_x11_helper", False):
+                self._footer.setToolTip("Clipboard Backend: XWayland/X11 Helper")
             else:
-                self._footer.setText(f"  ●  Active: {tool}  (Smooth background monitoring)")
-                self._footer.setStyleSheet("color: #10B981;")
-        elif getattr(self._service, "_use_x11_helper", False):
-            self._footer.setText("  ●  Active: XWayland/X11 Helper  (Background monitoring)")
-            self._footer.setStyleSheet("color: #10B981;")
-        else:
-            self._footer.setText("  ●  Active: Qt Focus-Only Fallback")
-            self._footer.setStyleSheet("color: #8B6F3A;")
+                self._footer.setToolTip("Clipboard Backend: Qt Focus-Only Fallback")
 
     # ──────────────────────────────────────────────────────────────────
     # Theme & Font Controls

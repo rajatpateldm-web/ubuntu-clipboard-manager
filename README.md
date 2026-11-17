@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/badge/Python-3.12+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.12+" />
   <img src="https://img.shields.io/badge/Qt-PyQt6-41CD52?style=flat-square&logo=qt&logoColor=white" alt="PyQt6" />
   <img src="https://img.shields.io/badge/Platform-Ubuntu%20%7C%20Wayland%20%7C%20X11-E95420?style=flat-square&logo=ubuntu&logoColor=white" alt="Ubuntu Wayland X11" />
-  <img src="https://img.shields.io/badge/Tests-84%20passed-success?style=flat-square" alt="84 Tests Passing" />
+  <img src="https://img.shields.io/badge/Tests-85%20passed-success?style=flat-square" alt="85 Tests Passing" />
   <img src="https://img.shields.io/badge/Storage-SQLite%20WAL%20(0600)-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite WAL Storage" />
 </p>
 
@@ -199,7 +199,7 @@ The test script runs in an offscreen Qt environment and verifies:
 - Developer color schemes, stylesheet generation, and live palette switching.
 - Persistent X11 and XWayland background clipboard helper process streaming and deduplication.
 - Bounded IPC command parsing and single-instance socket communication.
-- Virtualized `QListView` model and proxy filtering (`84` automated unit and integration tests plus full end-to-end GUI validation).
+- Virtualized `QListView` model and proxy filtering (`85` automated unit and integration tests plus full end-to-end GUI validation).
 
 ## Guides and Architecture Breakdown
 
