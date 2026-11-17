@@ -87,6 +87,18 @@ class TestCleanupDialog(unittest.TestCase):
         dialog2._delete_btn.click()
         self.assertEqual(dialog2.result(), CleanupDialog.DialogCode.Accepted)
 
+    def test_cancel_button_is_default_and_button_label_is_clear_items(self):
+        """Cancel must be the default button, delete non-default, and labeled 'Clear Items'."""
+        dialog = CleanupDialog(count_callback=lambda cutoff: 5)
+        self.assertEqual(dialog._delete_btn.text(), "Clear Items")
+        self.assertTrue(dialog._cancel_btn.isDefault())
+        self.assertFalse(dialog._delete_btn.isDefault())
+
+    def test_dialog_has_scrim_dismiss_action_ignore(self):
+        """CleanupDialog must configure scrim_dismiss_action as 'ignore' for safety."""
+        dialog = CleanupDialog(count_callback=lambda cutoff: 5)
+        self.assertEqual(getattr(dialog, "scrim_dismiss_action", None), "ignore")
+
 
 if __name__ == "__main__":
     unittest.main()

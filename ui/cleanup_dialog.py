@@ -33,6 +33,8 @@ class CleanupDialog(QDialog):
     Pinned items are permanently protected and never deleted.
     """
 
+    scrim_dismiss_action = "ignore"
+
     def __init__(
         self,
         count_callback: Callable[[float | None], int] | None = None,
@@ -45,6 +47,7 @@ class CleanupDialog(QDialog):
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
         self.setFixedWidth(400)
         self.setModal(True)
+        self.scrim_dismiss_action = "ignore"
 
         self._count_callback = count_callback
         self._preset_buttons: dict[str, QRadioButton] = {}
@@ -117,12 +120,14 @@ class CleanupDialog(QDialog):
         self._cancel_btn = QPushButton("Cancel")
         self._cancel_btn.setObjectName("dialogSecondaryBtn")
         self._cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._cancel_btn.setDefault(True)
         self._cancel_btn.clicked.connect(self.reject)
 
-        self._delete_btn = QPushButton("Delete Items")
+        self._delete_btn = QPushButton("Clear Items")
         self._delete_btn.setObjectName("cleanupDeleteBtn")
         self._delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._delete_btn.setDefault(True)
+        self._delete_btn.setDefault(False)
+        self._delete_btn.setAutoDefault(False)
         self._delete_btn.clicked.connect(self.accept)
 
         btn_row.addWidget(self._cancel_btn)

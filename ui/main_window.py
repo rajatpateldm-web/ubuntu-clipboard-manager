@@ -47,9 +47,10 @@ APP_VERSION = "1.1.0"
 class _ModalBackdrop(QFrame):
     """Dimmed in-window overlay container that centers modal dialogs over MainWindow."""
 
-    def __init__(self, parent: QWidget, dialog):
+    def __init__(self, parent: QWidget, dialog, dismiss_action: str = "accept"):
         super().__init__(parent)
         self._dialog = dialog
+        self._dismiss_action = dismiss_action
         self.setObjectName("modalBackdrop")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
 
@@ -58,10 +59,16 @@ class _ModalBackdrop(QFrame):
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
     def mousePressEvent(self, event):
-        # Close modal when clicking the dimmed scrim outside the dialog card
+        # Handle clicking the dimmed scrim outside the dialog card
         if self.childAt(event.position().toPoint()) is None and self._dialog is not None:
-            self._dialog.accept()
-            return
+            if self._dismiss_action == "ignore":
+                return
+            elif self._dismiss_action == "reject":
+                self._dialog.reject()
+                return
+            elif self._dismiss_action == "accept":
+                self._dialog.accept()
+                return
         super().mousePressEvent(event)
 
 
@@ -326,12 +333,17 @@ class MainWindow(QMainWindow):
 
         self._apply_appearance()
 
-    def _run_modal_overlay(self, dialog) -> int:
+    def _run_modal_overlay(self, dialog, dismiss_on_scrim_click: str | None = None) -> int:
         """Present a dialog centered inside MainWindow so Wayland compositors cannot misplace it."""
         if self._active_modal_dialog is not None:
             self._active_modal_dialog.reject()
 
-        backdrop = _ModalBackdrop(self, dialog)
+        scrim_action = (
+            dismiss_on_scrim_click
+            if dismiss_on_scrim_click is not None
+            else getattr(dialog, "scrim_dismiss_action", "accept")
+        )
+        backdrop = _ModalBackdrop(self, dialog, dismiss_action=scrim_action)
         dialog.setParent(backdrop)
         dialog.setWindowFlags(Qt.WindowType.Widget)
         dialog.setProperty("modalOverlay", "true")
@@ -373,7 +385,12 @@ class MainWindow(QMainWindow):
         self._run_modal_overlay(dialog)
 
     def _count_unpinned_items(self, cutoff: float | None) -> int:
-        """Count unpinned items older than cutoff (or all unpinned if cutoff is None)."""
+        """
+        Count unpinned items older than cutoff from persistent storage via ClipboardService.
+        Falls back to model if service is unavailable.
+        """
+        if hasattr(self, "_service") and hasattr(self._service, "count_unpinned_older_than"):
+            return self._service.count_unpinned_older_than(cutoff)
         if hasattr(self, "_model"):
             return self._model.count_unpinned_older_than(cutoff)
         return 0
@@ -397,7 +414,7 @@ class MainWindow(QMainWindow):
             count_callback=self._count_unpinned_items,
             parent=self,
         )
-        result = self._run_modal_overlay(dialog)
+        result = self._run_modal_overlay(dialog, dismiss_on_scrim_click="ignore")
         if result == QDialog.DialogCode.Accepted:
             cutoff = dialog.selected_cutoff()
             self._execute_cleanup(cutoff)
