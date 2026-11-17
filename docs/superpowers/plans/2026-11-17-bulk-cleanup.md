@@ -40,7 +40,7 @@
 * `ClipboardService.count_unpinned_older_than(cutoff_timestamp: float | None = None) -> int`
 * `ClipboardService.delete_unpinned_older_than(cutoff_timestamp: float | None = None) -> int`
 
-* [ ] **Step 1: Write failing tests for DatabaseService and ClipboardService cleanup**
+* [x] **Step 1: Write failing tests for DatabaseService and ClipboardService cleanup**
 
 Create `tests/test_database_bulk_cleanup.py` with test cases:
 1. `test_count_unpinned_older_than`: verify count with specific cutoffs and with `None`.
@@ -48,7 +48,7 @@ Create `tests/test_database_bulk_cleanup.py` with test cases:
 3. `test_pinned_items_never_deleted`: populate pinned items with old timestamps, run cleanup with `None` (All Unpinned), verify 100% of pinned items remain intact.
 4. `test_clipboard_service_memory_sync`: verify `ClipboardService.history` list is filtered consistently with database rows.
 
-* [ ] **Step 2: Run test suite to verify test failure**
+* [x] **Step 2: Run test suite to verify test failure**
 
 Run:
 ```bash
@@ -56,7 +56,7 @@ Run:
 ```
 Expected: Failures due to missing methods on `DatabaseService` and `ClipboardService`.
 
-* [ ] **Step 3: Implement database queries and service synchronization**
+* [x] **Step 3: Implement database queries and service synchronization**
 
 In `services/database_service.py`:
 Implement `count_unpinned_older_than(cutoff_timestamp: float | None = None) -> int` and `delete_unpinned_older_than(cutoff_timestamp: float | None = None) -> int`.
@@ -65,7 +65,7 @@ Ensure `_restrict_db_permissions()` is called after deletion.
 In `services/clipboard_service.py`:
 Implement `count_unpinned_older_than` and `delete_unpinned_older_than`. Update `self.history` in-memory list to drop deleted unpinned entries.
 
-* [ ] **Step 4: Run test suite to verify test pass**
+* [x] **Step 4: Run test suite to verify test pass**
 
 Run:
 ```bash
@@ -73,7 +73,7 @@ Run:
 ```
 Expected: All tests pass.
 
-* [ ] **Step 5: Commit changes**
+* [x] **Step 5: Commit changes**
 
 Stage modified service files and tests, commit with:
 ```
@@ -92,7 +92,7 @@ Authored-By-Org: NetTantra Technologies
 * `ClipboardModel.count_unpinned_older_than(cutoff_timestamp: float | None = None) -> int`
 * `ClipboardModel.remove_unpinned_older_than(cutoff_timestamp: float | None = None) -> int`
 
-* [ ] **Step 1: Write failing tests for ClipboardModel cleanup**
+* [x] **Step 1: Write failing tests for ClipboardModel cleanup**
 
 Create `tests/test_clipboard_model_cleanup.py` with test cases:
 1. `test_model_count_unpinned`: verify accurate count based on timestamp and pinned flag.
@@ -100,7 +100,7 @@ Create `tests/test_clipboard_model_cleanup.py` with test cases:
 3. `test_model_remove_all_unpinned`: verify all unpinned items are removed, leaving only pinned items.
 4. `test_model_pinned_preservation`: verify pinned items are preserved regardless of timestamp.
 
-* [ ] **Step 2: Run test suite to verify test failure**
+* [x] **Step 2: Run test suite to verify test failure**
 
 Run:
 ```bash
@@ -108,13 +108,13 @@ Run:
 ```
 Expected: Failures due to missing `count_unpinned_older_than` / `remove_unpinned_older_than`.
 
-* [ ] **Step 3: Implement ClipboardModel cleanup methods**
+* [x] **Step 3: Implement ClipboardModel cleanup methods**
 
 In `ui/clipboard_model.py`:
 Implement `count_unpinned_older_than(cutoff_timestamp: float | None = None) -> int`.
 Implement `remove_unpinned_older_than(cutoff_timestamp: float | None = None) -> int` wrapping list filtering inside `beginResetModel()` and `endResetModel()`.
 
-* [ ] **Step 4: Run test suite to verify test pass**
+* [x] **Step 4: Run test suite to verify test pass**
 
 Run:
 ```bash
@@ -122,7 +122,7 @@ Run:
 ```
 Expected: All tests pass.
 
-* [ ] **Step 5: Commit changes**
+* [x] **Step 5: Commit changes**
 
 Stage `ui/clipboard_model.py` and `tests/test_clipboard_model_cleanup.py`, commit with:
 ```
@@ -143,7 +143,7 @@ Authored-By-Org: NetTantra Technologies
 * `CleanupDialog.selected_cutoff() -> float | None`
 * `CleanupDialog.PRESETS`: mapping of preset keys to labels and duration seconds.
 
-* [ ] **Step 1: Write failing tests for CleanupDialog**
+* [x] **Step 1: Write failing tests for CleanupDialog**
 
 Create `tests/test_cleanup_dialog.py` with tests:
 1. `test_dialog_initialization`: verify default preset selection ("24 Hours") and dialog properties.
@@ -151,7 +151,7 @@ Create `tests/test_cleanup_dialog.py` with tests:
 3. `test_dialog_delete_button_disabled_when_zero`: verify delete button is disabled when matching count is 0.
 4. `test_dialog_accept_reject`: verify clicking Cancel rejects and clicking Delete accepts with proper `selected_cutoff()`.
 
-* [ ] **Step 2: Run test suite to verify test failure**
+* [x] **Step 2: Run test suite to verify test failure**
 
 Run:
 ```bash
@@ -159,7 +159,7 @@ Run:
 ```
 Expected: ModuleNotFoundError for `ui.cleanup_dialog`.
 
-* [ ] **Step 3: Implement CleanupDialog and styles**
+* [x] **Step 3: Implement CleanupDialog and styles**
 
 In `ui/cleanup_dialog.py`:
 Implement `CleanupDialog` subclassing `QDialog`:
@@ -171,7 +171,7 @@ Implement `CleanupDialog` subclassing `QDialog`:
 In `ui/styles.py`:
 Add QSS styles for `cleanupDialog`, `cleanupRadioOption`, `cleanupWarningBanner`, and `cleanupDeleteBtn`.
 
-* [ ] **Step 4: Run test suite to verify test pass**
+* [x] **Step 4: Run test suite to verify test pass**
 
 Run:
 ```bash
@@ -179,7 +179,7 @@ Run:
 ```
 Expected: All tests pass.
 
-* [ ] **Step 5: Commit changes**
+* [x] **Step 5: Commit changes**
 
 Stage `ui/cleanup_dialog.py`, `ui/styles.py`, and `tests/test_cleanup_dialog.py`, commit with:
 ```
@@ -201,14 +201,14 @@ Authored-By-Org: NetTantra Technologies
 * `MainWindow._count_unpinned_items(cutoff: float | None) -> int`
 * `MainWindow._execute_cleanup(cutoff: float | None) -> int`
 
-* [ ] **Step 1: Write failing tests for MainWindow cleanup integration**
+* [x] **Step 1: Write failing tests for MainWindow cleanup integration**
 
 Create `tests/test_main_window_cleanup.py` with tests:
 1. `test_header_has_cleanup_button`: verify `_cleanup_btn` exists in header with tooltip and icon.
 2. `test_cleanup_execution_updates_model_and_service`: verify calling `_execute_cleanup` deletes unpinned items from both service and model, leaving pinned items.
 3. `test_cleanup_updates_empty_state`: verify that clearing all items displays the empty state label.
 
-* [ ] **Step 2: Run test suite to verify test failure**
+* [x] **Step 2: Run test suite to verify test failure**
 
 Run:
 ```bash
@@ -216,7 +216,7 @@ Run:
 ```
 Expected: Failures due to missing `_cleanup_btn` and cleanup methods on `MainWindow`.
 
-* [ ] **Step 3: Integrate cleanup into MainWindow**
+* [x] **Step 3: Integrate cleanup into MainWindow**
 
 In `ui/main_window.py`:
 - Add `self._cleanup_btn` to `_build_header()` with icon `"🧹"` and tooltip `"Clear Old History"`.
@@ -227,7 +227,7 @@ In `ui/main_window.py`:
 In `ui/styles.py`:
 Ensure `#cleanupHistoryBtn` is styled identically to `#fontSettingsBtn` and `#colorSchemeBtn`.
 
-* [ ] **Step 4: Run test suite to verify test pass**
+* [x] **Step 4: Run test suite to verify test pass**
 
 Run:
 ```bash
@@ -235,7 +235,7 @@ Run:
 ```
 Expected: All tests pass.
 
-* [ ] **Step 5: Commit changes**
+* [x] **Step 5: Commit changes**
 
 Stage `ui/main_window.py`, `ui/styles.py`, and `tests/test_main_window_cleanup.py`, commit with:
 ```
@@ -251,7 +251,7 @@ Authored-By-Org: NetTantra Technologies
 * Test: Full test suite `./test_clipboard.sh`
 * Lint: `uv run --with ruff ruff check .`
 
-* [ ] **Step 1: Run full test suite**
+* [x] **Step 1: Run full test suite**
 
 Run:
 ```bash
@@ -259,7 +259,7 @@ Run:
 ```
 Expected: 100% of tests pass across all test modules.
 
-* [ ] **Step 2: Run Ruff linter**
+* [x] **Step 2: Run Ruff linter**
 
 Run:
 ```bash
@@ -267,7 +267,7 @@ uv run --with ruff ruff check .
 ```
 Expected: Zero lint errors or warnings.
 
-* [ ] **Step 3: Verify git status and branch integrity**
+* [x] **Step 3: Verify git status and branch integrity**
 
 Verify clean working directory on `feature/bulk-history-cleanup`.
 Ensure no unreviewed merges to `main`.
