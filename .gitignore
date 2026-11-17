@@ -11,4 +11,6 @@ clipvault.db
 *.db-wal
 *.snap
 *.snap.partial
+.superpowers/
+.venv/
 

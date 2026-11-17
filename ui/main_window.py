@@ -421,7 +421,15 @@ class MainWindow(QMainWindow):
     # ──────────────────────────────────────────────────────────────────
 
     def eventFilter(self, watched, event):
-        """Handle keyboard navigation between search bar and list view."""
+        """Handle keyboard navigation between search bar and list view, and quick copy."""
+        if event.type() == QEvent.Type.KeyPress:
+            # Handle Ctrl+1..9 quick copy shortcuts from any tracked widget
+            if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+                if Qt.Key.Key_1 <= event.key() <= Qt.Key.Key_9:
+                    target_row = int(event.key()) - int(Qt.Key.Key_1)
+                    self._on_quick_copy_row(target_row)
+                    return True
+
         if hasattr(self, "_search_bar") and watched == self._search_bar and event.type() == QEvent.Type.KeyPress:
             if hasattr(self, "_proxy_model") and hasattr(self, "_list_view"):
                 if event.key() == Qt.Key.Key_Down and self._proxy_model.rowCount() > 0:
@@ -440,7 +448,13 @@ class MainWindow(QMainWindow):
         return super().eventFilter(watched, event)
 
     def keyPressEvent(self, event):
-        """Dismiss modal overlay first, otherwise hide window on Escape key."""
+        """Handle global window keys: Escape to close, Ctrl+1..9 to quick copy."""
+        if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            if Qt.Key.Key_1 <= event.key() <= Qt.Key.Key_9:
+                target_row = int(event.key()) - int(Qt.Key.Key_1)
+                if self._on_quick_copy_row(target_row):
+                    return
+
         if event.key() == Qt.Key.Key_Escape:
             if self._active_modal_dialog is not None:
                 self._active_modal_dialog.reject()
@@ -485,17 +499,32 @@ class MainWindow(QMainWindow):
         self._update_empty_state()
 
     def _on_copy_item(self, item_id: str, text: str):
-        """Copy item text back to system clipboard."""
+        """Copy item text back to system clipboard without dismissing window."""
         self._service.set_ignore_next(text)
         QApplication.clipboard().setText(text)
 
+    def _on_quick_copy_row(self, row_idx: int) -> bool:
+        """Copy the item at visible row_idx to system clipboard and dismiss window."""
+        if not hasattr(self, "_proxy_model") or row_idx < 0 or row_idx >= self._proxy_model.rowCount():
+            return False
+        index = self._proxy_model.index(row_idx, 0)
+        if not index.isValid():
+            return False
+        text = self._proxy_model.data(index, FullTextRole)
+        if not text:
+            return False
+        self._on_copy_item("", text)
+        self.hide()
+        return True
+
     def _on_item_activated(self, proxy_index):
-        """Handle Enter / Return key on selected item to copy to clipboard."""
+        """Handle Enter / Return key on selected item to copy to clipboard and dismiss window."""
         if not proxy_index.isValid():
             return
         text = self._proxy_model.data(proxy_index, FullTextRole)
         if text:
             self._on_copy_item("", text)
+            self.hide()
 
     def _on_item_trimmed(self, item_id: str):
         """Handle auto-trimmed item from service."""
