@@ -99,6 +99,15 @@ class TestCleanupDialog(unittest.TestCase):
         dialog = CleanupDialog(count_callback=lambda cutoff: 5)
         self.assertEqual(getattr(dialog, "scrim_dismiss_action", None), "ignore")
 
+    def test_radio_button_indicator_styling_in_stylesheet(self):
+        """Stylesheet must explicitly style QRadioButton#cleanupRadioOption::indicator for light and dark modes."""
+        from ui.styles import build_stylesheet
+
+        for mode in ("light", "dark"):
+            ss = build_stylesheet(mode)
+            self.assertIn("QRadioButton#cleanupRadioOption::indicator", ss)
+            self.assertIn("QRadioButton#cleanupRadioOption::indicator:checked", ss)
+
 
 if __name__ == "__main__":
     unittest.main()

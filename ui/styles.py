@@ -1660,6 +1660,25 @@ QRadioButton#cleanupRadioOption {{
     spacing: 8px;
 }}
 
+QRadioButton#cleanupRadioOption::indicator {{
+    width: 16px;
+    height: 16px;
+    border-radius: 9px;
+    border: 2px solid {c["input_border"]};
+    background-color: {c["dialog_bg"]};
+}}
+
+QRadioButton#cleanupRadioOption::indicator:hover {{
+    border-color: {c["primary_bg"]};
+}}
+
+QRadioButton#cleanupRadioOption::indicator:checked {{
+    border: 2px solid {c["primary_bg"]};
+    background-color: qradialgradient(cx:0.5, cy:0.5, radius:0.45, fx:0.5, fy:0.5,
+        stop:0 {c["primary_bg"]}, stop:0.55 {c["primary_bg"]},
+        stop:0.6 {c["dialog_bg"]}, stop:1 {c["dialog_bg"]});
+}}
+
 QLabel#cleanupImpactLabel {{
     color: {c["text"]};
     font-size: 13px;
