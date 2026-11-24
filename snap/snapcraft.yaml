@@ -1,6 +1,6 @@
 name: clipvault-teckscaler
 version: '1.2.0'
-summary: Privacy-first Linux clipboard manager with Wayland support and password filtering
+summary: Privacy-first Linux clipboard manager with Wayland and password filtering
 description: |
   ClipVault is a lightweight, privacy-focused clipboard manager for Linux desktop environments,
   built specifically for modern Wayland compositors (GNOME, Ubuntu) and X11 sessions.
