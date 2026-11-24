@@ -42,7 +42,7 @@ from ui.styles import (
     sanitize_font_family,
 )
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 log = logging.getLogger("ClipVault.main_window")
 
 

@@ -212,7 +212,9 @@ class TestQuickCopy(unittest.TestCase):
 
     def test_footer_displays_version_and_removes_active_monitor_text(self):
         """Footer displays the application version and removes the active monitor status text."""
-        self.assertIn("1.1.0", self.window._footer.text())
+        from ui.main_window import APP_VERSION
+
+        self.assertIn(APP_VERSION, self.window._footer.text())
         self.assertNotIn("Active:", self.window._footer.text())
         self.assertNotIn("Smooth background monitoring", self.window._footer.text())
 

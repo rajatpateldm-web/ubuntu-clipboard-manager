@@ -1,17 +1,21 @@
 name: clipvault-teckscaler
 version: '1.2.0'
-summary: A lightweight, privacy-aware clipboard manager for Linux
+summary: Privacy-first Linux clipboard manager with Wayland support and password filtering
 description: |
-  ClipVault is a lightweight clipboard manager for Linux desktop environments,
-  supporting both X11 and Wayland sessions.
+  ClipVault is a lightweight, privacy-focused clipboard manager for Linux desktop environments,
+  built specifically for modern Wayland compositors (GNOME, Ubuntu) and X11 sessions.
 
-  Features:
-  - Three-tier monitoring (instant Qt signals, off-thread background worker, and polling)
-  - Automatic sensitive content detection and filtering for password managers (KeePassXC, Bitwarden, 1Password, KWallet)
-  - Virtualized QListView for constant O(1) memory usage
-  - Quick search filtering, item pinning, and single-click copy
-  - Single-instance IPC socket with desktop shortcut toggle support
-  - Persistent storage powered by SQLite with WAL mode
+  Key Capabilities:
+  - Quick Copy Shortcuts: Press Ctrl+1 through Ctrl+9 or Enter to copy visible clips and dismiss the window instantly, guided by visible card badges.
+  - Bulk History Cleanup: Selectively prune unpinned clipboard history older than 24 hours, 7 days, 30 days, or all unpinned entries, with safety confirmation and permanent pinned protection.
+  - Privacy and Password Protection: Automatically detects and filters sensitive clipboard metadata from password managers such as KeePassXC, 1Password, Bitwarden, and KWallet. Secrets are dropped before touching memory or disk.
+  - 10 Themeable Palettes: Switch between developer-tailored color schemes (Classic, Cyan, One Dark, Dracula, Nord, Tokyo Night, Monokai, Gruvbox, Solarized, Catppuccin), each with Dark and Light variants.
+  - Font Customization: Select font families, adjust sizes from 10px to 22px, and preview changes live with automatic card scaling.
+  - Wayland and X11 Native Monitoring: Background capture engine catches copies across active applications without UI stuttering or GNOME dock flickering.
+  - Virtualized Performance: Built on Qt Model-View architecture with constant O(1) memory overhead and smooth scrolling.
+  - Instant Substring Search: Filter snippets, URLs, and multi-line text in real time.
+  - Pinned Items: Pin important clips to anchor them permanently at the top of your history.
+  - Global Toggle Shortcut: Launch or hide ClipVault using a customizable global hotkey (such as Super+V).
 
 base: core24
 grade: stable
