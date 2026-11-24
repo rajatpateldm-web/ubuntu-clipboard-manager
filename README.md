@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/rajatpateldm-web/ubuntu-clipboard-manager/releases/tag/v1.1.0"><img src="https://img.shields.io/badge/Release-v1.1.0-blue?style=for-the-badge" alt="Version 1.1.0 Release" /></a>
+  <a href="https://github.com/rajatpateldm-web/ubuntu-clipboard-manager/releases/tag/v1.2.0"><img src="https://img.shields.io/badge/Release-v1.2.0-blue?style=for-the-badge" alt="Version 1.2.0 Release" /></a>
   <a href="https://snapcraft.io/clipvault-teckscaler"><img src="https://img.shields.io/badge/Snapcraft-clipvault--teckscaler-orange?style=for-the-badge&logo=snapcraft" alt="Snapcraft Package" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License" /></a>
   <a href="https://teckscaler.com/clipvault-clipboard-manager/"><img src="https://img.shields.io/badge/Website-TeckScaler-0f172a?style=for-the-badge" alt="Official ClipVault Page" /></a>
@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/badge/Python-3.12+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.12+" />
   <img src="https://img.shields.io/badge/Qt-PyQt6-41CD52?style=flat-square&logo=qt&logoColor=white" alt="PyQt6" />
   <img src="https://img.shields.io/badge/Platform-Ubuntu%20%7C%20Wayland%20%7C%20X11-E95420?style=flat-square&logo=ubuntu&logoColor=white" alt="Ubuntu Wayland X11" />
-  <img src="https://img.shields.io/badge/Tests-108%20passed-success?style=flat-square" alt="108 Tests Passing" />
+  <img src="https://img.shields.io/badge/Tests-109%20passed-success?style=flat-square" alt="109 Tests Passing" />
   <img src="https://img.shields.io/badge/Storage-SQLite%20WAL%20(0600)-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite WAL Storage" />
 </p>
 
@@ -29,24 +29,31 @@ ClipVault tracks your text clipboard history on Ubuntu, GNOME Wayland, and X11 d
 |---|---|
 | <img src="store-assets/5-gif-theme-cycling.gif" alt="ClipVault Theme Cycling Animation" width="400" /> | <img src="store-assets/6-gif-font-options.gif" alt="ClipVault Font Customization Demo" width="400" /> |
 
-## What Is New in Version 1.1.0
+## What Is New in Version 1.2.0
 
-The v1.1.0 release delivers comprehensive personalization, native background capture, and security hardening:
+The v1.2.0 release introduces quick copy workflows, bulk history management, and interface refinements:
 
-- **Bulk History Cleanup Tool:** Purge unpinned history entries using four standard presets (Older than 24 Hours, 7 Days, 30 Days, or All Unpinned) with a safety confirmation modal. Pinned clips are permanently preserved across every threshold. Built with a safe default Cancel action, backdrop scrim click ignore protection, and live count feedback.
+- **Bulk History Cleanup Tool:** Delete unpinned history entries using four standard presets (Older than 24 Hours, 7 Days, 30 Days, or All Unpinned) with a safety confirmation modal. Pinned clips are permanently preserved across every threshold. Built with a safe default Cancel action, backdrop scrim click ignore protection, and live count feedback.
 - **Quick Copy Keyboard Shortcuts:** In-window `Ctrl+1` through `Ctrl+9` and `Enter` shortcuts instantly copy the selected visible item to the system clipboard and dismiss the window, accompanied by visual shortcut badges (`^1` through `^9`) on item cards.
+- **Theme-Aware Selection Indicators:** Polished radio button controls with distinct circular indicators and accent highlights in both Dark and Light modes.
+- **Centered Version Footer:** Updated window footer displaying the application version centered cleanly.
+- **Expanded Test Suite:** 109 automated unit and integration tests covering bulk cleanup, quick copy shortcuts, model pruning, and theme styling.
+
+## Previous Releases (v1.1.0)
+
+The v1.1.0 release delivered visual personalization, native background capture, and security hardening:
+
 - **Typography and Font Customization:** Choose from font family presets (`System Default`, `Ubuntu`, `Sans Serif`, `Monospace`, `Serif`) or installed system fonts via `QFontDatabase`. Adjust font styles (`Regular`, `Bold`, `Italic`, `Bold Italic`) and tune font sizes from `10 px` to `22 px` with real-time preview and dynamic card row scaling.
 - **Ten Curated Developer Color Schemes:** Personalize your clipboard manager with 10 themes (`Classic`, `Cyan`, `One Dark`, `Dracula`, `Nord`, `Tokyo Night`, `Monokai`, `Gruvbox`, `Solarized`, `Catppuccin`). Every scheme features tailored Dark and Light mode variants (20 colorway combinations).
 - **Centered In-Window Modal Overlays:** Settings dialogs are integrated directly as modal in-window overlays inside the main interface. This keeps dialogs vertically centered, compact, and free from multi-window compositor clipping under GNOME Wayland.
 - **Persistent X11 and XWayland Background Helper:** Native clipboard helper (`services/x11_clipboard_helper.py`) captures copy events from external applications even when ClipVault is unfocused and command-line utilities (`xclip`, `xsel`, `wl-paste`) are not installed.
 - **Security and Storage Hardening:** Enforced strict `0o600` permissions on SQLite `.db`, `-wal`, and `-shm` files. Added bounded 64-byte IPC command parsing with exact matching, extended copy-back ignore windows to `1200 ms`, and bundled Adwaita and Hicolor icon themes in Snapcraft for crisp Wayland rendering.
-- **Expanded Test Suite and Developer Config:** 108 automated unit and integration tests covering bulk cleanup, quick copy shortcuts, font options, color themes, IPC bounds, X11 helper streaming, and database permissions, accompanied by `CONTRIBUTING.md` and `pyproject.toml`.
 
-## Version 1.1.0 Screenshots and Demos
+## Interface and Screenshots
 
 ### Modern Interface (Dark and Light Modes)
 
-ClipVault v1.1.0 features a refined interface with instant search, pinned clip management, and one-click copy.
+ClipVault features a refined interface with instant search, pinned clip management, and one-click copy.
 
 | Dark Mode Window (`1-screenshot-main.png`) | Light Mode Window (`2-screenshot-light.png`) |
 |---|---|
@@ -204,7 +211,7 @@ The test script runs in an offscreen Qt environment and verifies:
 - Developer color schemes, stylesheet generation, and live palette switching.
 - Persistent X11 and XWayland background clipboard helper process streaming and deduplication.
 - Bounded IPC command parsing and single-instance socket communication.
-- Virtualized `QListView` model and proxy filtering (`108` automated unit and integration tests plus full end-to-end GUI validation).
+- Virtualized `QListView` model and proxy filtering (`109` automated unit and integration tests plus full end-to-end GUI validation).
 
 ## Guides and Architecture Breakdown
 

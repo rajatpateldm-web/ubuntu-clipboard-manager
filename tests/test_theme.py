@@ -154,9 +154,10 @@ class TestThemeAndKeyboard(unittest.TestCase):
 
         down_event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Down, Qt.KeyboardModifier.NoModifier)
         handled = window.eventFilter(window._search_bar, down_event)
+        self.app.processEvents()
 
         self.assertTrue(handled)
-        self.assertTrue(window._list_view.hasFocus())
+        self.assertEqual(window.focusWidget(), window._list_view)
         self.assertEqual(window._list_view.currentIndex().row(), 0)
 
     def test_keyboard_navigation_delete_item(self):
