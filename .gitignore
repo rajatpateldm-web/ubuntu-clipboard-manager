@@ -13,4 +13,5 @@ clipvault.db
 *.snap.partial
 .superpowers/
 .venv/
+uv.lock
 
